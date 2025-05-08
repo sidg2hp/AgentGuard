@@ -72,6 +72,3 @@ print(result)
 ## Testing
 - Test the agents individually or as a dual-agent system.
 - Use `verbose=True` in `AgentExecutor` for detailed logs.
-
-## License
-This project is licensed under the MIT License.
