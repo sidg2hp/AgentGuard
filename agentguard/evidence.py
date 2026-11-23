@@ -36,12 +36,12 @@ def excerpts(text):
 
 def collect(rows, secrets=()):
     documents = {}
-    for row in rows[:5] if isinstance(rows, list) else []:
+    for index, row in enumerate(rows[:5] if isinstance(rows, list) else [], start=1):
         if not isinstance(row, dict) or not isinstance(row.get("content"), str):
             continue
         lines = [s for s in excerpts(row["content"][:4000]) if not protected(s, secrets)]
         if lines:
-            documents[f"S{len(documents) + 1}"] = {
+            documents[f"S{index}"] = {
                 "excerpts": lines, "url": source_url(row.get("url"), secrets),
             }
     return documents

@@ -2,6 +2,7 @@
 import os
 
 from agentguard.policy import ToolGuard
+from agentguard.evidence import collect
 from agentguard.providers import tavily_search
 from pipeline import build_pipeline
 
@@ -16,7 +17,11 @@ class _Agent:
 
 def get_research_agent():
     guard = ToolGuard(tavily_search, secrets=(os.getenv("TAVILY_API_KEY", ""),))
-    return _Agent(lambda query: guard.call("research", "search", {"query": query}, []))
+    def research(query):
+        rows = guard.call("research", "search", {"query": query}, [])
+        docs = collect(rows, guard.secrets)
+        return "\n".join(f"{quote} [{source}]" for source, doc in docs.items() for quote in doc["excerpts"])
+    return _Agent(research)
 
 
 def _retrieve(retriever, query):
@@ -30,9 +35,6 @@ def get_drafting_agent(retriever):
 
 
 def get_dual_agent_system(retriever=None):
-    def combined_search(query):
-        rows = tavily_search(query)
-        return [*rows[:3], *_retrieve(retriever, query)] if retriever is not None else rows
-
-    graph = build_pipeline(search=combined_search)
+    retrieve = None if retriever is None else lambda query: _retrieve(retriever, query)
+    graph = build_pipeline(retrieve=retrieve)
     return lambda question: graph.invoke({"query": question})["response"]

@@ -30,12 +30,12 @@ class State(Request, Result, total=False):
     candidate: Any
 
 
-def build_pipeline(*, offline=False, search=None, draft=None, secrets=()):
+def build_pipeline(*, offline=False, search=None, draft=None, secrets=(), retrieve=None):
     """Custom providers are trusted application dependencies, supplied at construction."""
     search = search or (local_search if offline else tavily_search)
     draft = draft or (extractive_draft if offline else ollama_draft)
     secrets = tuple(secrets) + ((os.getenv("TAVILY_API_KEY") or ""),)
-    guard = ToolGuard(search, secrets=secrets)
+    guard = ToolGuard(search, secrets=secrets, retrieve=retrieve)
 
     def validate(state):
         started = perf_counter()
@@ -51,6 +51,9 @@ def build_pipeline(*, offline=False, search=None, draft=None, secrets=()):
         trace = list(state["trace"])
         try:
             rows = guard.call("research", "search", {"query": state["query"]}, trace)
+            if retrieve is not None:
+                context = guard.call("research", "retrieve_context", {"query": state["query"]}, trace)
+                rows = [*rows[:3], *context[:2]]
         except CallBlocked:
             return {"status": "blocked", "trace": trace}
         except ToolFailure:

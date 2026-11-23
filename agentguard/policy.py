@@ -48,17 +48,20 @@ class ToolGuard:
     search: Callable
     read: Callable | None = None
     secrets: tuple[str, ...] = ()
+    retrieve: Callable | None = None
 
     def call(self, actor: Literal["research", "mcp"], tool, arguments, trace):
         started = perf_counter()
-        schema = {"search": Search, "read_document": Read}.get(tool)
-        handler = {"search": self.search, "read_document": self.read}.get(tool)
+        schema = {"search": Search, "read_document": Read, "retrieve_context": Search}.get(tool)
+        handler = {"search": self.search, "read_document": self.read, "retrieve_context": self.retrieve}.get(tool)
         # Only enumerated names enter logs. User-supplied names can contain secrets.
         fields = {"actor": actor, "tool": tool if schema else "unregistered"}
         reason = None
         if schema is None or handler is None or actor not in {"research", "mcp"}:
             reason = "permission_denied"
         elif tool == "read_document" and actor != "mcp":
+            reason = "permission_denied"
+        elif tool == "retrieve_context" and actor != "research":
             reason = "permission_denied"
         else:
             try:
