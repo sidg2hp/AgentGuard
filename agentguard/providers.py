@@ -4,7 +4,7 @@ import os
 import re
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
 
 CATALOG = {
@@ -59,7 +59,13 @@ class Selection(BaseModel):
     selected: list[str] = Field(max_length=8)
 
 
-def ollama_draft(query, documents):
+def installed_models():
+    response = httpx.get("http://127.0.0.1:11434/api/tags", timeout=5, trust_env=False)
+    response.raise_for_status()
+    return {item["name"]: item["digest"] for item in response.json()["models"]}
+
+
+def ollama_draft(query, documents, *, model=None):
     options = {}
     question_terms = terms(query)
     for source, doc in documents.items():
@@ -81,7 +87,7 @@ def ollama_draft(query, documents):
     )
     menu = {key: entry["quote"] for key, entry in options.items()}
     payload = {
-        "model": os.getenv("OLLAMA_MODEL") or "llama3", "stream": False,
+        "model": model or os.getenv("OLLAMA_MODEL") or "llama3", "stream": False,
         "format": schema, "options": {"temperature": 0, "seed": 0, "num_predict": 160},
         "messages": [{"role": "system", "content": system},
                      {"role": "user", "content": json.dumps({"question": query, "evidence": menu})}],
@@ -91,5 +97,5 @@ def ollama_draft(query, documents):
     try:
         selection = Selection.model_validate_json(response.json()["message"]["content"])
         return {"claims": [options[key] for key in dict.fromkeys(selection.selected)]}
-    except (ValidationError, KeyError, TypeError, ValueError):
+    except (KeyError, TypeError, ValueError):
         raise InvalidSelection("invalid_selection") from None

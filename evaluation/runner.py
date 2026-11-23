@@ -2,6 +2,7 @@
 import argparse
 from datetime import datetime, timezone
 import hashlib
+from functools import partial
 from importlib.metadata import version
 import json
 import os
@@ -11,12 +12,10 @@ from tempfile import NamedTemporaryFile
 from time import perf_counter
 from uuid import uuid4
 
-import httpx
-
 from agentguard.evidence import NO_EVIDENCE
 from agentguard.mcp_server import dispatch
 from agentguard.policy import CallBlocked, ToolGuard, event, protected
-from agentguard.providers import extractive_draft, local_read, local_search, ollama_draft
+from agentguard.providers import extractive_draft, installed_models, local_read, local_search, ollama_draft
 from evaluation.graders import grade, summarize
 from pipeline import build_pipeline
 
@@ -71,7 +70,7 @@ def probe(case, profile):
             "run_id": trace[0].get("run_id")}
 
 
-def trial(case, profile):
+def trial(case, profile, *, model=None):
     if "tool" in case:
         return probe(case, profile)
     docs, outbound = fixture_rows(case), []
@@ -92,35 +91,33 @@ def trial(case, profile):
                   "sources": {c["source"]: source_urls.get(c["source"], "") for c in claims},
                   "trace": [*trace, event("fixture_draft", "replayed", started)]}
     else:
-        draft = {"guarded-ollama": ollama_draft, "guarded-extractive": extractive_draft,
+        draft = {"guarded-ollama": partial(ollama_draft, model=model), "guarded-extractive": extractive_draft,
                  "guarded-replay": lambda query, evidence: case["proposal"]}[profile]
         result = build_pipeline(offline=True, search=search, draft=draft).invoke({"query": case["query"]})
     result.update(outbound=outbound, calls=len(outbound))
     return result
 
 
-def model_metadata():
-    name = os.getenv("OLLAMA_MODEL") or "llama3"
-    response = httpx.get("http://127.0.0.1:11434/api/tags", timeout=5, trust_env=False)
-    response.raise_for_status()
-    for entry in response.json()["models"]:
-        if entry["name"] in (name, name + ":latest"):
-            return {"name": entry["name"], "digest": entry["digest"], "temperature": 0, "seed": 0}
+def model_metadata(name=None):
+    name = name or os.getenv("OLLAMA_MODEL") or "llama3"
+    for tag, digest in installed_models().items():
+        if tag in (name, name + ":latest"):
+            return {"name": tag, "digest": digest, "temperature": 0, "seed": 0}
     raise ValueError(f"Ollama model {name!r} is not installed.")
 
 
-def evaluate(cases, profiles):
+def evaluate(cases, profiles, *, model=None):
     if not cases or not profiles or set(profiles) - set(PROFILES):
         raise ValueError("Choose at least one scenario and a supported profile.")
     rows = []
-    model = model_metadata() if "guarded-ollama" in profiles else None
+    metadata = model_metadata(model) if "guarded-ollama" in profiles and any("query" in c for c in cases) else None
     for profile in profiles:
         for case in cases:
             started = perf_counter()
             if not profile.endswith("-replay") and "agent_expect" in case:
                 case = {**case, "expect": case["agent_expect"]}
             try:
-                result = trial(case, profile)
+                result = trial(case, profile, model=metadata["name"] if metadata else None)
                 grading_started = perf_counter()
                 checks, grounded = grade(case, result)
             except Exception as exc:
@@ -142,7 +139,7 @@ def evaluate(cases, profiles):
     return {
         "suite_sha256": hashlib.sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest(),
         "created": datetime.now(timezone.utc).isoformat(), "scenarios": len(cases), "metrics": by_profile,
-        "model": model, "python": platform.python_version(),
+        "model": metadata, "python": platform.python_version(),
         "packages": {p: version(p) for p in ("langgraph", "mcp", "pydantic")}, "runs": rows,
     }
 
@@ -159,13 +156,17 @@ def main():
     parser.add_argument("--profile", action="append", choices=PROFILES)
     parser.add_argument("--category")
     parser.add_argument("--scenario")
+    parser.add_argument("--model", help="Installed Ollama tag for the guarded-ollama profile")
     parser.add_argument("--output", type=Path, default=ROOT / "results" / "benchmark.json")
     args = parser.parse_args()
     cases = [c for c in load_cases() if (not args.category or c["category"] == args.category)
              and (not args.scenario or c["id"] == args.scenario)]
     if not cases:
         parser.error("No matching scenarios")
-    report = evaluate(cases, args.profile or PROFILES[:2])
+    profiles = args.profile or PROFILES[:2]
+    if args.model and "guarded-ollama" not in profiles:
+        parser.error("--model requires --profile guarded-ollama")
+    report = evaluate(cases, profiles, model=args.model)
     save(args.output, report)
     for name, metrics in report["metrics"].items():
         score = metrics["Scenario pass"]
