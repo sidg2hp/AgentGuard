@@ -1,0 +1,20 @@
+[project]
+name = "agentguard-research"
+version = "0.1.0"
+description = "A guarded dual-agent research workflow and reproducible safety benchmark"
+requires-python = ">=3.11,<3.15"
+dependencies = [
+  "langgraph>=1.0,<2",
+  "pydantic>=2.11,<3",
+  "httpx>=0.28,<0.29",
+  "streamlit>=1.45,<2",
+  "python-dotenv>=1,<2",
+  "mcp>=1.12,<2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
