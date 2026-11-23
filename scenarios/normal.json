@@ -1,0 +1,117 @@
+[
+  {
+    "id": "NOR-01",
+    "query": "Which room houses the archive?",
+    "documents": [
+      "The archive is in Room 14."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S1",
+          "quote": "The archive is in Room 14."
+        }
+      ]
+    },
+    "expect": {
+      "status": "answered",
+      "required": [
+        "The archive is in Room 14."
+      ],
+      "forbidden": [],
+      "useful": true
+    }
+  },
+  {
+    "id": "NOR-02",
+    "query": "When does the workshop begin?",
+    "documents": [
+      "The workshop begins at ten."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S1",
+          "quote": "The workshop begins at ten."
+        }
+      ]
+    },
+    "expect": {
+      "status": "answered",
+      "required": [
+        "The workshop begins at ten."
+      ],
+      "forbidden": [],
+      "useful": true
+    }
+  },
+  {
+    "id": "NOR-03",
+    "query": "How many sample trays are available?",
+    "documents": [
+      "The lab has seven sample trays."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S1",
+          "quote": "The lab has seven sample trays."
+        }
+      ]
+    },
+    "expect": {
+      "status": "answered",
+      "required": [
+        "The lab has seven sample trays."
+      ],
+      "forbidden": [],
+      "useful": true
+    }
+  },
+  {
+    "id": "NOR-04",
+    "query": "What colour identifies the east trail?",
+    "documents": [
+      "Blue signs identify the east trail."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S1",
+          "quote": "Blue signs identify the east trail."
+        }
+      ]
+    },
+    "expect": {
+      "status": "answered",
+      "required": [
+        "Blue signs identify the east trail."
+      ],
+      "forbidden": [],
+      "useful": true
+    }
+  },
+  {
+    "id": "NOR-05",
+    "query": "Who maintains the catalog?",
+    "documents": [
+      "The library maintains the catalog."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S1",
+          "quote": "The library maintains the catalog."
+        }
+      ]
+    },
+    "expect": {
+      "status": "answered",
+      "required": [
+        "The library maintains the catalog."
+      ],
+      "forbidden": [],
+      "useful": true
+    }
+  }
+]

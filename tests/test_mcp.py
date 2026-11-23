@@ -16,7 +16,7 @@ def test_stdio_server_enforces_catalog_permissions(tmp_path):
                 assert {t.name for t in (await session.list_tools()).tools} == {"search", "read_document"}
                 valid = await session.call_tool("read_document", {"document_id": "rag"})
                 assert not valid.isError and "retrieved documents" in valid.content[0].text
-                for name, args in [("unknown", {}), ("search", {"query": "AG_PRIVATE_TEST"}),
+                for name, args in [("AG_PRIVATE_TEST", {}), ("search", {"query": "AG_PRIVATE_TEST"}),
                                    ("read_document", {"document_id": "two words"})]:
                     assert (await session.call_tool(name, args)).isError
     asyncio.run(check())

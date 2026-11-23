@@ -1,6 +1,7 @@
 """Read-only, stdio MCP server. Audit events go to stderr, protocol frames to stdout."""
 import asyncio
 import json
+import logging
 import sys
 from uuid import uuid4
 
@@ -48,6 +49,9 @@ def create_server():
 
 
 async def main():
+    # The SDK warning for unknown tools echoes caller-controlled names to stderr.
+    # Dispatch records every decision using enumerated tool names instead.
+    logging.getLogger("mcp.server.lowlevel.server").setLevel(logging.ERROR)
     server = create_server()
     async with stdio_server() as (reader, writer):
         await server.run(reader, writer, server.create_initialization_options())

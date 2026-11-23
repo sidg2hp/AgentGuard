@@ -8,7 +8,7 @@ import httpx
 from agentguard.evidence import Draft
 
 CATALOG = {
-    "rag": "Retrieval augmented generation uses retrieved documents as evidence.",
+    "rag": "Retrieval augmented generation (RAG) uses retrieved documents as evidence.",
     "agents": "Research agents gather evidence. Drafting agents select relevant evidence.",
     "policies": "Tool policies check permissions before a handler runs.",
 }
