@@ -1,5 +1,6 @@
 services:
   benchmark:
+    image: agentguard-workspace:local
     build: .
     network_mode: none
     read_only: true

@@ -34,7 +34,11 @@ packages = ["agentguard", "evaluation"]
 "utils.py" = "utils.py"
 
 [dependency-groups]
-dev = ["pytest>=8,<10"]
+dev = ["pytest>=8,<10", "ruff>=0.12,<1"]
+browser = ["playwright>=1.55,<2"]
+
+[tool.ruff.lint]
+select = ["E9", "F"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

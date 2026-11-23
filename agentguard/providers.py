@@ -2,10 +2,11 @@
 import json
 import os
 import re
+from urllib.parse import urlsplit
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
-from agentguard.catalog import CATALOG, CATALOG_PREFIX, local_read
+from agentguard.catalog import CATALOG, CATALOG_PREFIX, local_read as local_read
 
 
 def terms(text):
@@ -62,8 +63,16 @@ class Selection(BaseModel):
     selected: list[str] = Field(max_length=8)
 
 
+def ollama_base_url():
+    base = (os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").rstrip("/")
+    url = urlsplit(base)
+    if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password or url.path or url.query or url.fragment:
+        raise ValueError("Configure OLLAMA_BASE_URL as an HTTP(S) origin.")
+    return base
+
+
 def installed_models():
-    response = httpx.get("http://127.0.0.1:11434/api/tags", timeout=5, trust_env=False)
+    response = httpx.get(ollama_base_url() + "/api/tags", timeout=5, trust_env=False)
     response.raise_for_status()
     return {item["name"]: item["digest"] for item in response.json()["models"]}
 
@@ -95,7 +104,7 @@ def ollama_draft(query, documents, *, model=None):
         "messages": [{"role": "system", "content": system},
                      {"role": "user", "content": json.dumps({"question": query, "evidence": menu})}],
     }
-    response = httpx.post("http://127.0.0.1:11434/api/chat", json=payload, timeout=90, trust_env=False)
+    response = httpx.post(ollama_base_url() + "/api/chat", json=payload, timeout=90, trust_env=False)
     response.raise_for_status()
     try:
         selection = Selection.model_validate_json(response.json()["message"]["content"])
