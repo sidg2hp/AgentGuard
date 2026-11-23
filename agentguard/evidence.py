@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentguard.policy import protected
+from agentguard.catalog import catalog_text
 
 
 class Claim(BaseModel):
@@ -51,8 +52,10 @@ def collect(rows, secrets=()):
             continue
         lines = [s for s in excerpts(row["content"], limit=4000) if not protected(s, secrets)]
         if lines:
+            uri = row.get("url")
+            catalog_source = catalog_text(uri) == row["content"] and not protected(uri, secrets)
             documents[f"S{index}"] = {
-                "excerpts": lines, "url": source_url(row.get("url"), secrets),
+                "excerpts": lines, "url": uri if catalog_source else source_url(uri, secrets),
             }
     return documents
 

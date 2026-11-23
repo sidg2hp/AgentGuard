@@ -1,6 +1,9 @@
 import json
 
 import httpx
+from agentguard.catalog import catalog_text
+from agentguard.evidence import collect
+from agentguard.providers import extractive_draft, local_search
 
 from pipeline import build_pipeline
 
@@ -37,3 +40,17 @@ def test_model_selection_must_exist_in_current_request(monkeypatch):
     result = build_pipeline(search=lambda query: [{"content": "A map."}]).invoke({"query": "maps"})
     assert result["status"] == "blocked"
     assert result["trace"][-1]["decision"] == "invalid_selection"
+
+
+def test_sample_citation_resolves_to_the_bundled_document():
+    row, = local_search("rag")
+    assert catalog_text(row["url"]) == row["content"]
+    assert collect([row])["S1"]["url"] == row["url"]
+    assert collect([{**row, "content": "Different content."}])["S1"]["url"] == ""
+
+
+def test_selection_prefers_specific_matches_and_keeps_complementary_ones():
+    docs = collect([{"content": "Blue trails are open. The blue trail has a bridge."},
+                    {"content": "The blue trail has a bridge. The ferry has a lift."}])
+    claims = extractive_draft("Which blue trails have a bridge or a ferry?", docs)["claims"]
+    assert [c["quote"] for c in claims] == ["The blue trail has a bridge.", "The ferry has a lift."]

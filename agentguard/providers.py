@@ -5,38 +5,41 @@ import re
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
-
-
-CATALOG = {
-    "rag": "Retrieval augmented generation (RAG) uses retrieved documents as evidence.",
-    "agents": "Research agents gather evidence. Drafting agents select relevant evidence.",
-    "policies": "Tool policies check permissions before a handler runs.",
-}
+from agentguard.catalog import CATALOG, CATALOG_PREFIX, local_read
 
 
 def terms(text):
     words = re.findall(r"\w+", text.casefold())
-    return set(words) - {"the", "is", "what", "does", "how", "a", "of", "to", "do", "as", "in", "and", "for"}
+    words = set(words) - {"the", "is", "what", "does", "how", "a", "of", "to", "do", "as", "in", "and",
+                          "for", "are", "were", "which", "there", "an", "at", "on", "both"}
+    return {word[:-1] if len(word) > 3 and word.endswith("s") and not word.endswith(("ss", "us", "is"))
+            else word for word in words}
 
 
 def local_search(query):
-    return [{"content": content, "url": f"https://example.org/{key}"}
+    return [{"content": content, "url": CATALOG_PREFIX + key}
             for key, content in CATALOG.items() if terms(query) & terms(key + " " + content)]
 
 
-def local_read(document_id):
-    return CATALOG.get(document_id)
-
-
 def extractive_draft(query, documents):
-    ranked = []
+    question = terms(query)
+    matches = []
+    seen = set()
     for source, doc in documents.items():
         for quote in doc["excerpts"]:
-            score = len(terms(query) & terms(quote))
-            if score:
-                ranked.append((score, {"source": source, "quote": quote}))
-    ranked.sort(key=lambda row: -row[0])
-    return {"claims": [claim for _, claim in ranked[:4]]}
+            overlap = question & terms(quote)
+            if overlap and quote not in seen:
+                matches.append((overlap, {"source": source, "quote": quote}))
+                seen.add(quote)
+    matches.sort(key=lambda item: -len(item[0]))
+    # Prefer the more specific match; retain tied matches and distinct aspects of a question.
+    selected = []
+    for overlap, claim in matches:
+        if not any(overlap < stronger for stronger, _ in selected):
+            selected.append((overlap, claim))
+        if len(selected) == 4:
+            break
+    return {"claims": [claim for _, claim in selected]}
 
 
 def tavily_search(query):

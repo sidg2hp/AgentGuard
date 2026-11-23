@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 from evaluation.runner import PROFILES, ROOT, evaluate, load_cases
 from agentguard.providers import installed_models, ollama_draft
+from agentguard.catalog import catalog_text
 from pipeline import build_pipeline
 
 load_dotenv()
@@ -54,7 +55,8 @@ def research():
         if result["status"] == "error":
             st.info("Check the failed stage in the trace. Live research requires Tavily and a local Ollama model.")
         if result["sources"]:
-            st.table([{"Source": source, "URL": url} for source, url in result["sources"].items()])
+            st.table([{"Source": source, "Reference": uri, "Catalog text": catalog_text(uri) or ""}
+                      for source, uri in result["sources"].items()])
         with st.expander("Execution trace"):
             st.caption(result["run_id"])
             st.dataframe(result["trace"], hide_index=True)
