@@ -1,5 +1,6 @@
 """Single research workflow used by the UI, compatibility API and benchmark."""
 import os
+from copy import deepcopy
 from time import perf_counter
 from typing import Any, TypedDict
 from uuid import uuid4
@@ -70,7 +71,7 @@ def build_pipeline(*, offline=False, search=None, draft=None, secrets=(), retrie
     def compose(state):
         started = perf_counter()
         try:
-            candidate = draft(state["query"], state["evidence"])
+            candidate = draft(state["query"], deepcopy(state["evidence"]))
         except Exception:
             return {"status": "error", "response": STOPPED,
                     "trace": [*state["trace"], event("draft", "provider_error", started)]}

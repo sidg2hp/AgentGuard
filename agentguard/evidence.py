@@ -30,8 +30,18 @@ def source_url(value, secrets):
     return ""
 
 
-def excerpts(text):
-    return [s.strip() for s in re.split(r"(?<=[.!?])\s+|[\r\n]+", text) if 0 < len(s.strip()) <= 1000]
+_BOUNDARY = re.compile(r"(?<=[.!?])\s+|[\r\n]+")
+
+
+def excerpts(text, *, limit=None):
+    if limit is not None and len(text) > limit:
+        # Keep complete excerpts. A truncated sentence could lose a qualification.
+        window = text[:limit + 1]
+        last = 0
+        for match in _BOUNDARY.finditer(window):
+            last = match.start()
+        text = window[:last]
+    return [s.strip() for s in _BOUNDARY.split(text) if 0 < len(s.strip()) <= 1000]
 
 
 def collect(rows, secrets=()):
@@ -39,7 +49,7 @@ def collect(rows, secrets=()):
     for index, row in enumerate(rows[:5] if isinstance(rows, list) else [], start=1):
         if not isinstance(row, dict) or not isinstance(row.get("content"), str):
             continue
-        lines = [s for s in excerpts(row["content"][:4000]) if not protected(s, secrets)]
+        lines = [s for s in excerpts(row["content"], limit=4000) if not protected(s, secrets)]
         if lines:
             documents[f"S{index}"] = {
                 "excerpts": lines, "url": source_url(row.get("url"), secrets),

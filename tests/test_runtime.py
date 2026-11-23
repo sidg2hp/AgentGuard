@@ -5,6 +5,35 @@ from agentguard.policy import CallBlocked, ToolGuard
 from pipeline import build_pipeline
 
 
+@pytest.mark.parametrize("bad_search", [False, True])
+def test_malformed_retrieval_stops_at_its_tool_boundary(bad_search):
+    search = lambda query: None if bad_search else []
+    app = build_pipeline(search=search, retrieve=lambda query: {"unexpected": "shape"})
+    result = app.invoke({"query": "trail"})
+    failure = result["trace"][-1]
+    assert result["status"] == "error"
+    assert failure["tool"] == ("search" if bad_search else "retrieve_context")
+    assert failure["reason"] == "invalid_tool_result"
+
+
+def test_budget_never_turns_partial_sentences_into_evidence():
+    from agentguard.evidence import excerpts
+
+    paragraph = "A trail is open. A trail is open only on Tuesdays."
+    assert excerpts(paragraph, limit=31) == ["A trail is open."]
+    assert excerpts(paragraph, limit=5) == []
+    assert excerpts(paragraph, limit=len("A trail is open.")) == ["A trail is open."]
+
+
+def test_drafter_cannot_change_the_evidence_used_to_validate_its_claim():
+    def draft(question, evidence):
+        evidence["S1"]["excerpts"].append("Revised claim.")
+        return {"claims": [{"source": "S1", "quote": "Revised claim."}]}
+
+    app = build_pipeline(search=lambda query: [{"content": "Original claim."}], draft=draft)
+    assert app.invoke({"query": "claim"})["status"] == "blocked"
+
+
 def test_refuses_before_dispatch():
     trace = []
     guard = ToolGuard(lambda query: pytest.fail("must not dispatch"))

@@ -79,5 +79,8 @@ class ToolGuard:
         except Exception:
             trace.append(event("tool", "error", started, **fields, reason="provider_error", executed=True))
             raise ToolFailure("provider_error") from None
+        if tool in {"search", "retrieve_context"} and not isinstance(result, list):
+            trace.append(event("tool", "error", started, **fields, reason="invalid_tool_result", executed=True))
+            raise ToolFailure("invalid_tool_result")
         trace.append(event("tool", "allowed", started, **fields, executed=True))
         return result
