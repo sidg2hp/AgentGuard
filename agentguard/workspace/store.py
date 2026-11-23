@@ -20,7 +20,7 @@ def canonical(data):
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-SUMMARY = "id,kind,status,created,updated,attempt,progress,total,error"
+SUMMARY = "id,kind,status,created,updated,attempt,progress,total,error,suite_sha256"
 
 
 class Store:
@@ -47,7 +47,11 @@ class Store:
             db.execute("PRAGMA journal_mode=WAL")
         with self.connection(True) as db:
             v = db.execute("PRAGMA user_version").fetchone()[0]
+            if v == 2:
+                return
             if v == 1:
+                db.execute("ALTER TABLE runs ADD COLUMN suite_sha256 TEXT")
+                db.execute("PRAGMA user_version=2")
                 return
             if v:
                 raise RuntimeError("Unsupported workspace database schema.")
@@ -57,13 +61,13 @@ class Store:
                 id TEXT PRIMARY KEY, kind TEXT NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL,
                 idem TEXT UNIQUE, created REAL NOT NULL, updated REAL NOT NULL, attempt INTEGER NOT NULL DEFAULT 0,
                 fence TEXT, expires REAL, progress INTEGER NOT NULL DEFAULT 0, total INTEGER NOT NULL,
-                result TEXT, error TEXT)""")
+                result TEXT, error TEXT, suite_sha256 TEXT)""")
             db.execute("CREATE INDEX runs_queue ON runs(status,created)")
             db.execute("""CREATE TABLE events (
                 seq INTEGER PRIMARY KEY, run_id TEXT NOT NULL, at REAL NOT NULL, state TEXT NOT NULL, attempt INTEGER NOT NULL)""")
             db.execute("CREATE INDEX events_run ON events(run_id,seq)")
             db.execute("CREATE TABLE workers (id TEXT PRIMARY KEY, seen REAL NOT NULL)")
-            db.execute("PRAGMA user_version=1")
+            db.execute("PRAGMA user_version=2")
 
     def put_pack(self, pack):
         body = canonical(pack)
@@ -75,7 +79,8 @@ class Store:
 
     def packs(self):
         with self.connection() as db:
-            return [dict(r) for r in db.execute("SELECT id,name,size,created FROM packs ORDER BY created DESC LIMIT 100")]
+            return [dict(r) for r in db.execute("""SELECT id,name,size,created,
+                COALESCE(json_array_length(body,'$.checks'),0) AS checks FROM packs ORDER BY created DESC LIMIT 100""")]
 
     def pack(self, key):
         with self.connection() as db:
@@ -86,7 +91,7 @@ class Store:
     def _event(db, run_id, state, attempt, now):
         db.execute("INSERT INTO events(run_id,at,state,attempt) VALUES(?,?,?,?)", (run_id, now, state, attempt))
 
-    def submit(self, spec, idem=None, total=1):
+    def submit(self, spec, idem=None, total=1, suite_sha256=None):
         body, now = canonical(spec), time.time()
         key = hashlib.sha256(idem.encode()).hexdigest() if idem else None
         with self.connection(True) as db:
@@ -100,8 +105,8 @@ class Store:
             if count >= self.capacity:
                 raise QueueFull()
             run_id = uuid4().hex
-            db.execute("""INSERT INTO runs(id,kind,status,body,idem,created,updated,total)
-                          VALUES(?,?,'queued',?,?,?,?,?)""", (run_id, spec["kind"], body, key, now, now, total))
+            db.execute("""INSERT INTO runs(id,kind,status,body,idem,created,updated,total,suite_sha256)
+                          VALUES(?,?,'queued',?,?,?,?,?,?)""", (run_id, spec["kind"], body, key, now, now, total, suite_sha256))
             self._event(db, run_id, "queued", 0, now)
             return run_id
 
@@ -133,7 +138,7 @@ class Store:
                 db.execute("""UPDATE runs SET status='failed',error='worker_lost',fence=NULL,expires=NULL,updated=?
                               WHERE id=?""", (now, row["id"]))
                 self._event(db, row["id"], "failed", row["attempt"], now)
-            row = db.execute("""SELECT id,body,attempt FROM runs WHERE status='queued'
+            row = db.execute("""SELECT id,body,attempt,suite_sha256 FROM runs WHERE status='queued'
                                 OR (status='running' AND expires<=?) ORDER BY created,id LIMIT 1""", (now,)).fetchone()
             if row is None:
                 return None
@@ -141,7 +146,10 @@ class Store:
             db.execute("""UPDATE runs SET status='running',attempt=?,fence=?,expires=?,progress=0,updated=? WHERE id=?""",
                        (attempt, fence, now + lease, now, row["id"]))
             self._event(db, row["id"], "reclaimed" if attempt > 1 else "running", attempt, now)
-            return row["id"], fence, json.loads(row["body"])
+            spec = json.loads(row["body"])
+            if row["suite_sha256"]:
+                spec["_suite_sha256"] = row["suite_sha256"]
+            return row["id"], fence, spec
 
     def renew(self, run_id, fence, *, lease=45):
         now = time.time()
@@ -210,3 +218,13 @@ class Store:
         except BaseException:
             destination.unlink(missing_ok=True)
             raise
+
+    def prune(self, cutoff, *, apply=False):
+        # Packs have an independent lifecycle. Only terminal job rows and their events are eligible.
+        predicate = "status IN ('completed','failed','cancelled') AND updated<?"
+        with self.connection(write=apply) as db:
+            count = db.execute(f"SELECT COUNT(*) FROM runs WHERE {predicate}", (cutoff,)).fetchone()[0]
+            if apply:
+                db.execute(f"DELETE FROM events WHERE run_id IN (SELECT id FROM runs WHERE {predicate})", (cutoff,))
+                db.execute(f"DELETE FROM runs WHERE {predicate}", (cutoff,))
+            return count

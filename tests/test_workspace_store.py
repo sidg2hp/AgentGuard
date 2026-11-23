@@ -44,3 +44,16 @@ def test_lost_worker_exhausts_retry_budget(store):
     store.claim(lease=-1)
     assert store.claim(max_attempts=1) is None
     assert store.get(key)["error"] == "worker_lost"
+
+
+def test_pruning_only_removes_terminal_records_and_related_events(store):
+    import time
+    old = store.submit({"kind": "research"})
+    store.cancel(old)
+    active = store.submit({"kind": "research"})
+    cutoff = time.time() + 1
+    assert store.prune(cutoff) == 1 and store.get(old)
+    assert store.prune(cutoff, apply=True) == 1 and store.get(old) is None
+    assert store.get(active)["status"] == "queued"
+    with store.connection() as db:
+        assert db.execute("SELECT COUNT(*) FROM events WHERE run_id=?", (old,)).fetchone()[0] == 0

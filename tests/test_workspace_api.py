@@ -77,3 +77,34 @@ def test_workspace_admission_and_health_contract(workspace):
         assert client.post("/v1/runs", json=spec).status_code == status
     assert "/v1/gates" in client.get("/openapi.json").json()["paths"]
     assert client.get("/healthz").json() == {"status":"alive"}
+    assert 'agentguard_runs{state="queued"} 0' in client.get("/v1/metrics").text
+
+
+def test_worker_refuses_different_fixtures_than_were_queued(workspace):
+    client, worker = workspace
+    key = worker.store.submit({"kind":"evaluation"}, total=60, suite_sha256="changed")
+    worker.once()
+    assert client.get("/v1/runs/" + key).json()["error"] == "suite_changed"
+
+
+def test_pack_assertions_are_versioned_and_required_for_release(workspace):
+    client, worker = workspace
+    pack = {"name":"Field notes", "documents":[{"title":"Museum","content":"The museum opens at noon."}],
+            "checks":[{"query":"When does the museum open?", "contains":"midnight", "document":1}]}
+    pack_id = client.post("/v1/packs", json=pack).json()["id"]
+    assert client.get("/v1/packs").json()[0]["checks"] == 1
+    spec = {"kind":"evaluation", "profiles":["guarded-extractive"], "pack_id":pack_id}
+    receipt = client.post("/v1/runs", json=spec)
+    assert receipt.status_code == 202
+    worker.once()
+    run = client.get(receipt.headers["location"]).json()
+    assert run["total"] == run["progress"] == 31
+    assert run["suite_sha256"] == run["result"]["suite_sha256"]
+    check = run["result"]["runs"][-1]
+    assert check["id"] == "PACK-01" and not check["passed"] and check["checks"]["expected citation"]
+    decision = client.post("/v1/gates", json={"run_id":run["id"], "profile":"guarded-extractive",
+                                              "minimum_pass_rate":0}).json()
+    assert decision["verdict"] == "fail"
+    pack["checks"][0]["contains"] = "noon"
+    assert client.post("/v1/packs", json=pack).json()["id"] != pack_id
+    assert client.post("/v1/runs", json={**spec, "profiles":["baseline-replay"]}).status_code == 422

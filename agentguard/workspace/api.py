@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.security import HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import Field
@@ -14,10 +14,12 @@ from pydantic import Field
 from agentguard.policy import protected
 from agentguard.workspace.config import Settings
 from agentguard.workspace.gates import assess
-from agentguard.workspace.models import Contract, Evaluation, EvidencePack, Profile, Research, Submission
+from agentguard.workspace.models import (
+    Contract, Evaluation, EvidencePack, PackSummary, Profile, Receipt, RunDetail, RunSummary, SavedPack, Submission,
+)
 from agentguard.workspace.store import Conflict, QueueFull, Store
 from agentguard.workspace.worker import check_capabilities, selected_cases
-from evaluation.runner import PROFILES, load_cases
+from evaluation.runner import PROFILES, load_cases, suite_fingerprint
 
 MAX_BODY = 128 * 1024
 
@@ -128,47 +130,66 @@ def create_app(settings=None):
     def scenarios():
         return [{"id": c["id"], "category": c["category"]} for c in load_cases()]
 
+    @api.get("/metrics", response_class=PlainTextResponse, tags=["operations"])
+    def metrics():
+        stats = store.stats()
+        lines = ["# TYPE agentguard_workers gauge", f"agentguard_workers {stats['workers']}",
+                 "# TYPE agentguard_queue_capacity gauge", f"agentguard_queue_capacity {stats['capacity']}",
+                 "# TYPE agentguard_runs gauge"]
+        for state in ("queued", "running", "completed", "failed", "cancelled"):
+            lines.append(f'agentguard_runs{{state="{state}"}} {stats["runs"].get(state, 0)}')
+        return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
+
     @api.post("/packs", status_code=201)
     def put_pack(pack: EvidencePack):
         body = pack.model_dump()
+        if not body["checks"]:
+            body.pop("checks")  # Keep the existing content address for document-only packs.
         check_content(body)
         return {"id": store.put_pack(body), "documents": len(pack.documents)}
 
-    @api.get("/packs")
+    @api.get("/packs", response_model=list[PackSummary])
     def list_packs():
         return store.packs()
 
-    @api.get("/packs/{pack_id}")
+    @api.get("/packs/{pack_id}", response_model=SavedPack)
     def get_pack(pack_id: str):
         pack = store.pack(pack_id)
         if pack is None:
             raise HTTPException(404, "Unknown evidence pack.")
         return {"id": pack_id, **pack}
 
-    @api.post("/runs", status_code=202)
+    @api.post("/runs", status_code=202, response_model=Receipt)
     def submit(spec: Submission, idempotency_key: Annotated[str | None, Header(max_length=128, min_length=1)] = None):
         body = spec.model_dump()
         check_content(body)
-        try:
-            check_capabilities(spec, settings)
-        except PermissionError as exc:
-            raise HTTPException(403, str(exc)) from None
         total = 1
-        if isinstance(spec, Research) and spec.pack_id and store.pack(spec.pack_id) is None:
+        fingerprint = None
+        pack = store.pack(spec.pack_id) if spec.pack_id else None
+        if spec.pack_id and pack is None:
             raise HTTPException(404, "Unknown evidence pack.")
+        cases = None
         if isinstance(spec, Evaluation):
-            total = len(selected_cases(spec)) * len(spec.profiles)
+            if pack and not pack.get("checks"):
+                raise HTTPException(422, "This evidence pack has no acceptance checks.")
+            cases = selected_cases(spec, pack)
+            total = len(cases) * len(spec.profiles)
+            fingerprint = suite_fingerprint(cases)
             if not total:
                 raise HTTPException(422, "No matching evaluation scenarios.")
-        key = store.submit(body, idempotency_key, total)
+        try:
+            check_capabilities(spec, settings, cases)
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from None
+        key = store.submit(body, idempotency_key, total, fingerprint)
         return JSONResponse({"id": key}, status_code=202, headers={"Location": f"/v1/runs/{key}"})
 
-    @api.get("/runs")
+    @api.get("/runs", response_model=list[RunSummary])
     def list_runs(limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0),
                   status: Literal["queued", "running", "completed", "failed", "cancelled"] | None = None):
         return store.list_runs(limit=limit, offset=offset, status=status)
 
-    @api.get("/runs/{run_id}")
+    @api.get("/runs/{run_id}", response_model=RunDetail)
     def get_run(run_id: str):
         row = store.get(run_id)
         if row is None:

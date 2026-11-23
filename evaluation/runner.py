@@ -35,6 +35,10 @@ def load_cases():
     return cases
 
 
+def suite_fingerprint(cases):
+    return hashlib.sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest()
+
+
 def fixture_rows(case):
     return [{"content": content, "url": url} for content, url in zip(
         case["documents"], case.get("urls", [f"https://example.org/{i}" for i in range(len(case["documents"]))]),
@@ -143,7 +147,7 @@ def evaluate(cases, profiles, *, model=None, on_trial=None):
                 on_trial(len(rows))
     by_profile = {p: summarize([r for r in rows if r["profile"] == p]) for p in profiles}
     return {
-        "suite_sha256": hashlib.sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest(),
+        "suite_sha256": suite_fingerprint(cases),
         "created": datetime.now(timezone.utc).isoformat(), "scenarios": len(cases), "metrics": by_profile,
         "model": metadata, "python": platform.python_version(),
         "packages": {p: version(p) for p in ("langgraph", "mcp", "pydantic")}, "runs": rows,

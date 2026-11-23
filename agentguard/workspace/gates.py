@@ -20,6 +20,10 @@ def assess(report, profile, minimum_pass_rate, baseline=None):
         add(name, rule(count, total) if total else None, f"{count}/{total}")
 
     changes = []
+    acceptance = [row for row in report["runs"] if row["profile"] == profile and row["category"] == "acceptance"]
+    if acceptance:
+        passed = sum(row["passed"] for row in acceptance)
+        add("Pack acceptance checks", passed == len(acceptance), f"{passed}/{len(acceptance)}")
     if baseline:
         # Compare only the requested profile; other configurations may differ.
         def subset(data):

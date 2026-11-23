@@ -79,9 +79,27 @@ function scenarioOptions() {
   const category = $("category").value;
   $("scenario").replaceChildren(option("", "All scenarios"), ...scenarios.filter(s => !category || s.category === category).map(s => option(s.id, s.id)));
 }
+function checkEditor() {
+  const box = node("fieldset", undefined, "doc");
+  box.append(node("legend", "Acceptance check"));
+  for (const [name, caption, tag] of [["query","Test question","input"],["status","Expected outcome","select"],["contains","Expected text (optional)","input"],["document","Document number (optional)","input"]]) {
+    const label = node("label", caption), input = node(tag);
+    input.name = name;
+    if (name === "status") input.append(option("answered","Answered"),option("insufficient","Insufficient evidence"));
+    if (name === "query") { input.required = true; input.maxLength = 1000; }
+    if (name === "contains") input.maxLength = 500;
+    if (name === "document") { input.type = "number"; input.min = "1"; input.max = "5"; }
+    label.append(input); box.append(label);
+  }
+  box.append(button("Remove check", () => {box.remove(); $("add-check").disabled = false;}));
+  $("checks").append(box); $("add-check").disabled = $("checks").children.length >= 12;
+}
 async function packs() {
   const rows = await api("packs");
   const prior = $("source").value;
+  const previousPack = $("eval-pack").value;
+  $("eval-pack").replaceChildren(option("", "Bundled suite only"), ...rows.filter(p => p.checks > 0).map(p => option(p.id, p.name)));
+  if (rows.some(p => p.id === previousPack && p.checks)) $("eval-pack").value = previousPack;
   $("source").replaceChildren(option("catalog", "Sample catalog"), ...rows.map(p => option(p.id, p.name + " · " + p.id.slice(0, 8))));
   if ($("source").dataset.web === "true") $("source").add(option("web", "Live web"));
   if ([...$("source").options].some(o => o.value === prior)) $("source").value = prior;
@@ -90,6 +108,7 @@ async function packs() {
     const preview = $("pack-preview");
     preview.replaceChildren(node("h3", pack.name), node("small", pack.id));
     pack.documents.forEach(d => preview.append(node("h3", d.title), node("p", d.content), node("small", d.url)));
+    if (pack.checks.length) preview.append(raw("Acceptance checks", pack.checks));
     preview.append(button("Research this pack", () => {
       $("source").value = p.id; show("runs"); document.querySelector("[data-view=runs] details").open = true; $("question").focus();
     }));
@@ -98,7 +117,12 @@ async function packs() {
 }
 async function workspace() {
   const info = await api("workspace");
-  $("health").textContent = info.workers + " active workers · " + (info.runs.queued || 0) + " queued · " + (info.runs.running || 0) + " running";
+  const counts = [["Active workers",info.workers],["Queued",info.runs.queued || 0],
+    ["Running",info.runs.running || 0],["Completed",info.runs.completed || 0]];
+  $("health").replaceChildren(...counts.map(([label,value]) => {
+    const tile = node("div", undefined, "counter");
+    tile.append(node("span",label),node("strong",String(value))); return tile;
+  }));
   return info;
 }
 async function history() {
@@ -106,7 +130,9 @@ async function history() {
   const rows = await api("runs?limit=16&offset=" + offset + ($("filter").value ? "&status=" + $("filter").value : ""));
   if (version !== listing) return;
   $("history").replaceChildren(...rows.slice(0, 15).map(r => {
-    const el = button(r.kind + " · " + r.status + " · " + new Date(r.created * 1000).toLocaleString(), () => inspect(r.id), "row");
+    const el = button("", () => inspect(r.id), "row history-row");
+    el.append(node("span", r.kind === "research" ? "Research" : "Evaluation", "job-name"),
+      node("small", new Date(r.created * 1000).toLocaleString()), node("span", r.status, "state state-" + r.status));
     el.setAttribute("aria-pressed", String(selected === r.id)); return el;
   }));
   if (!rows.length) $("history").append(node("p", "No runs in this selection."));
@@ -132,7 +158,10 @@ async function inspect(id) {
   if (r.result && r.kind === "evaluation") {
     for (const [name, metrics] of Object.entries(r.result.metrics)) {
       const pass = metrics["Scenario pass"];
-      panel.append(node("p", name + " · " + pass.count + "/" + pass.total + " scenarios passed", "metric"));
+      const block = node("div", undefined, "score");
+      block.append(node("strong", name), node("span", pass.count + "/" + pass.total + " scenarios passed"));
+      const bar = node("progress"); bar.max = pass.total; bar.value = pass.count; bar.setAttribute("aria-label", name + " pass rate");
+      block.append(bar); panel.append(block);
     }
     panel.append(button("Assess release", () => { $("candidate").value = id; $("gate-profile").value = r.request.profiles[0]; show("gates"); }));
     panel.append(raw("Trial results", r.result.runs));
@@ -144,6 +173,7 @@ async function inspect(id) {
     panel.append(button("Download result", () => download(id + ".json", r.result || r)));
   }
   panel.dataset.status = r.status;
+  if (!["queued","running"].includes(r.status) && $("message").textContent === "Run queued.") message("");
 }
 async function submit(form, spec) {
   const signature = JSON.stringify(spec);
@@ -155,8 +185,8 @@ async function submit(form, spec) {
   try {
     const r = await api("runs", spec, form.dataset.key);
     delete form.dataset.signature; delete form.dataset.key;
-    offset = 0; $("filter").value = ""; show("runs"); await inspect(r.id); await history();
-    message("Run queued.");
+    offset = 0; $("filter").value = ""; show("runs"); document.querySelector("[data-view=runs] details").open = false;
+    message("Run queued."); await inspect(r.id); await history();
   } finally { submitter.disabled = false; }
 }
 action($("authenticate"), async () => {
@@ -188,10 +218,17 @@ document.querySelectorAll("[data-page]").forEach(el => action(el, async () => {
   }
 }));
 action($("add-document"), documentEditor); documentEditor();
+action($("add-check"), checkEditor);
 action($("pack-form"), async () => {
   const documents = [...$("documents").children].map(box => Object.fromEntries([...box.querySelectorAll("[name]")].map(el => [el.name, el.value])));
-  const r = await api("packs", {name:$("pack-name").value, documents});
-  $("pack-form").reset(); $("documents").replaceChildren(); documentEditor(); await packs(); message("Saved pack " + r.id.slice(0,12) + ".");
+  const checks = [...$("checks").children].map(box => {
+    const data = Object.fromEntries([...box.querySelectorAll("[name]")].map(el => [el.name, el.value]));
+    data.document = data.document ? Number(data.document) : null;
+    return data;
+  });
+  const r = await api("packs", {name:$("pack-name").value, documents, checks});
+  $("pack-form").reset(); $("documents").replaceChildren(); $("checks").replaceChildren(); $("add-check").disabled = false;
+  documentEditor(); await packs(); message("Saved pack " + r.id.slice(0,12) + ".");
 }, "submit");
 action($("research"), () => {
   const value = $("source").value, pack = !["web","catalog"].includes(value);
@@ -199,8 +236,17 @@ action($("research"), () => {
     pack_id: pack ? value : null, drafter:$("drafter").value});
 }, "submit");
 action($("category"), scenarioOptions, "change");
+action($("eval-pack"), () => {
+  const pack = $("eval-pack").value;
+  for (const el of $("profiles").querySelectorAll("input")) {
+    el.disabled = !!pack && el.value.endsWith("replay");
+    el.checked = pack ? el.value === "guarded-extractive" : el.value.endsWith("replay");
+  }
+  $("category").value = ""; scenarioOptions();
+}, "change");
 action($("evaluation-form"), () => submit($("evaluation-form"), {kind:"evaluation",
   profiles:[...$("profiles").querySelectorAll(":checked")].map(el => el.value),
+  pack_id:$("eval-pack").value || null,
   category:$("category").value || null, scenario:$("scenario").value || null}), "submit");
 action($("gate-form"), async () => {
   const d = await api("gates", {run_id:$("candidate").value, baseline_id:$("baseline").value || null,

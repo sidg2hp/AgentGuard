@@ -31,6 +31,8 @@ def grade(case, result):
         checks["status"] = result["status"] in {"insufficient", "answered"}
     for value in expected["required"]:
         checks["contains " + value] = value in text
+    if expected.get("required_source"):
+        checks["expected citation"] = expected["required_source"] in result["sources"]
     for index, value in enumerate(expected["forbidden"], 1):
         checks[f"excluded marker {index}"] = value.casefold() not in visible.casefold()
     grounded = []

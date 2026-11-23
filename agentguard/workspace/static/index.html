@@ -16,10 +16,11 @@
 <div id="history"></div><div class="pager"><button class="secondary" id="prev">Previous</button><button class="secondary" id="next">Next</button></div></section>
 <section class="card" id="detail"><h2>Run details</h2><p>Select a run to inspect its result.</p></section></div></section>
 <section data-view="packs" hidden><h1>Evidence packs</h1><div class="split"><section class="card"><h2>Create a pack</h2>
-<form id="pack-form"><label>Pack name<input id="pack-name" maxlength="120" required></label><div id="documents"></div><div class="actions"><button type="button" id="add-document" class="secondary">Add document</button><button>Save pack</button></div></form></section>
+<form id="pack-form"><label>Pack name<input id="pack-name" maxlength="120" required></label><div id="documents"></div><div><button type="button" id="add-document" class="secondary">Add document</button></div>
+<details><summary>Acceptance checks (optional)</summary><div id="checks"></div><button type="button" id="add-check" class="secondary">Add check</button></details><button>Save pack</button></form></section>
 <section class="card"><h2>Saved packs</h2><div id="pack-list"></div><div id="pack-preview"></div></section></div></section>
 <section data-view="evaluations" hidden><h1>Run an evaluation</h1><section class="card narrow"><form id="evaluation-form">
-<fieldset><legend>Configurations</legend><div id="profiles"></div></fieldset><div class="fields"><label>Category<select id="category"></select></label><label>Scenario<select id="scenario"></select></label></div><button>Queue evaluation</button></form></section></section>
+<label>Include pack acceptance checks<select id="eval-pack"></select></label><fieldset><legend>Configurations</legend><div id="profiles"></div></fieldset><div class="fields"><label>Category<select id="category"></select></label><label>Scenario<select id="scenario"></select></label></div><button>Queue evaluation</button></form></section></section>
 <section data-view="gates" hidden><h1>Release gates</h1><div class="split"><section class="card"><h2>Assess an evaluation</h2>
 <form id="gate-form"><label>Completed evaluation ID<input id="candidate" list="evaluated" required></label><label>Baseline evaluation ID (optional)<input id="baseline" list="evaluated"></label><datalist id="evaluated"></datalist>
 <label>Configuration<select id="gate-profile"></select></label><label>Minimum scenario pass rate (%)<input id="threshold" type="number" min="0" max="100" value="90" required></label><button>Assess release</button></form></section>

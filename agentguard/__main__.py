@@ -7,6 +7,8 @@ from pathlib import Path
 import signal
 import sqlite3
 import threading
+import time
+from importlib.metadata import version
 
 from agentguard.workspace.config import Settings, init_token
 from agentguard.workspace.store import Store
@@ -14,6 +16,7 @@ from agentguard.workspace.store import Store
 
 def main():
     parser = argparse.ArgumentParser(prog="agentguard")
+    parser.add_argument("--version", action="version", version=version("agentguard-research"))
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init", help="Initialize the database and local token file")
     serve = commands.add_parser("serve", help="Serve the workspace console and versioned API")
@@ -24,6 +27,9 @@ def main():
     commands.add_parser("status", help="Show queue counts and recent worker heartbeats")
     backup = commands.add_parser("backup", help="Write a consistent SQLite snapshot to a new file")
     backup.add_argument("destination", type=Path)
+    prune = commands.add_parser("prune", help="Preview or prune old terminal runs")
+    prune.add_argument("--older-than-days", type=int, required=True)
+    prune.add_argument("--apply", action="store_true", help="Delete the eligible runs and their lifecycle events")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     if args.command == "init" and not os.getenv("AGENTGUARD_API_TOKEN"):
@@ -39,6 +45,11 @@ def main():
         elif args.command == "backup":
             store.backup(args.destination)
             print(f"Snapshot saved: {args.destination}")
+        elif args.command == "prune":
+            if args.older_than_days < 1:
+                parser.error("--older-than-days must be at least 1")
+            n = store.prune(time.time() - args.older_than_days * 86400, apply=args.apply)
+            print(f"{n} terminal runs {'removed' if args.apply else 'eligible for removal'}.")
         else:
             from agentguard.workspace.worker import Worker
             stop = threading.Event()
