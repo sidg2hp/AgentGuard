@@ -105,7 +105,7 @@ def model_metadata():
     response.raise_for_status()
     for entry in response.json()["models"]:
         if entry["name"] in (name, name + ":latest"):
-            return {"name": entry["name"], "digest": entry["digest"], "temperature": 0}
+            return {"name": entry["name"], "digest": entry["digest"], "temperature": 0, "seed": 0}
     raise ValueError(f"Ollama model {name!r} is not installed.")
 
 

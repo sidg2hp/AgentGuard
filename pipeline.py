@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from agentguard.evidence import BLOCKED, NO_EVIDENCE, STOPPED, collect, release
 from agentguard.policy import CallBlocked, Search, ToolFailure, ToolGuard, event, protected
-from agentguard.providers import extractive_draft, local_search, ollama_draft, tavily_search
+from agentguard.providers import InvalidSelection, extractive_draft, local_search, ollama_draft, tavily_search
 
 
 class Request(TypedDict):
@@ -72,6 +72,9 @@ def build_pipeline(*, offline=False, search=None, draft=None, secrets=(), retrie
         started = perf_counter()
         try:
             candidate = draft(state["query"], deepcopy(state["evidence"]))
+        except InvalidSelection:
+            return {"status": "blocked", "response": BLOCKED,
+                    "trace": [*state["trace"], event("draft", "invalid_selection", started)]}
         except Exception:
             return {"status": "error", "response": STOPPED,
                     "trace": [*state["trace"], event("draft", "provider_error", started)]}
