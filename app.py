@@ -68,13 +68,12 @@ def evaluation():
     category = st.selectbox("Category", ["All", *sorted({c["category"] for c in cases})])
     eligible = [c for c in cases if category in ("All", c["category"])]
     profiles = st.multiselect("Configurations", PROFILES, default=PROFILES[:2])
-    needs_model = "guarded-ollama" in profiles and any("query" in c for c in eligible)
+    scenario = st.selectbox("Scenario", ["All", *(c["id"] for c in eligible)])
+    selected = [c for c in eligible if scenario in ("All", c["id"])]
+    needs_model = "guarded-ollama" in profiles and any("query" in c for c in selected)
     model = choose_model() if needs_model else None
-    with st.form("benchmark_options"):
-        scenario = st.selectbox("Scenario", ["All", *(c["id"] for c in eligible)])
-        run = st.form_submit_button("Run benchmark", type="primary", disabled=needs_model and not model)
+    run = st.button("Run benchmark", type="primary", disabled=needs_model and not model)
     if run:
-        selected = [c for c in cases if category in ("All", c["category"]) and scenario in ("All", c["id"])]
         if not selected or not profiles:
             st.error("Select a configuration and a scenario in the chosen category.")
         else:
