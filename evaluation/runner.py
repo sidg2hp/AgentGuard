@@ -109,6 +109,8 @@ def model_metadata(name=None):
 def evaluate(cases, profiles, *, model=None):
     if not cases or not profiles or set(profiles) - set(PROFILES):
         raise ValueError("Choose at least one scenario and a supported profile.")
+    if len(set(profiles)) != len(profiles):
+        raise ValueError("Select each profile once.")
     rows = []
     metadata = model_metadata(model) if "guarded-ollama" in profiles and any("query" in c for c in cases) else None
     for profile in profiles:
