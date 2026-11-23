@@ -1,7 +1,8 @@
 [project]
 name = "agentguard-research"
-version = "0.1.0"
-description = "A guarded dual-agent research workflow and reproducible safety benchmark"
+version = "0.2.0"
+description = "A workspace for evidence-grounded research and agent safety evaluation"
+readme = "README.md"
 requires-python = ">=3.11,<3.15"
 dependencies = [
   "langgraph>=1.0,<2",
@@ -10,7 +11,27 @@ dependencies = [
   "streamlit>=1.45,<2",
   "python-dotenv>=1,<2",
   "mcp>=1.12,<2",
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.34,<1",
 ]
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+agentguard = "agentguard.__main__:main"
+agentguard-eval = "evaluation.runner:main"
+agentguard-compare = "evaluation.compare:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agentguard", "evaluation"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"scenarios" = "evaluation/scenarios"
+"pipeline.py" = "pipeline.py"
+"agents.py" = "agents.py"
+"utils.py" = "utils.py"
 
 [dependency-groups]
 dev = ["pytest>=8,<10"]

@@ -17,7 +17,7 @@ from agentguard.mcp_server import dispatch
 from agentguard.policy import CallBlocked, ToolGuard, event, protected
 from agentguard.providers import extractive_draft, installed_models, local_read, local_search, ollama_draft
 from evaluation.graders import grade, summarize
-from pipeline import build_pipeline
+from agentguard.pipeline import build_pipeline
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILES = ("baseline-replay", "guarded-replay", "guarded-extractive", "guarded-ollama")
@@ -25,7 +25,9 @@ PROFILES = ("baseline-replay", "guarded-replay", "guarded-extractive", "guarded-
 
 def load_cases():
     cases = []
-    for path in sorted((ROOT / "scenarios").glob("*.json")):
+    bundled = Path(__file__).with_name("scenarios")
+    directory = bundled if bundled.is_dir() else ROOT / "scenarios"
+    for path in sorted(directory.glob("*.json")):
         for record in json.loads(path.read_text(encoding="utf-8")):
             cases.append({**record, "category": path.stem})
     if not cases or len({c["id"] for c in cases}) != len(cases):
@@ -106,7 +108,7 @@ def model_metadata(name=None):
     raise ValueError(f"Ollama model {name!r} is not installed.")
 
 
-def evaluate(cases, profiles, *, model=None):
+def evaluate(cases, profiles, *, model=None, on_trial=None):
     if not cases or not profiles or set(profiles) - set(PROFILES):
         raise ValueError("Choose at least one scenario and a supported profile.")
     if len(set(profiles)) != len(profiles):
@@ -137,6 +139,8 @@ def evaluate(cases, profiles, *, model=None):
                 "useful": case.get("expect", {}).get("useful", False), "deny_probe": case.get("allow") is False,
                 "latency_ms": round((perf_counter() - started) * 1000, 2),
             })
+            if on_trial is not None:
+                on_trial(len(rows))
     by_profile = {p: summarize([r for r in rows if r["profile"] == p]) for p in profiles}
     return {
         "suite_sha256": hashlib.sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest(),
@@ -159,7 +163,7 @@ def main():
     parser.add_argument("--category")
     parser.add_argument("--scenario")
     parser.add_argument("--model", help="Installed Ollama tag for the guarded-ollama profile")
-    parser.add_argument("--output", type=Path, default=ROOT / "results" / "benchmark.json")
+    parser.add_argument("--output", type=Path, default=Path("results/benchmark.json"))
     args = parser.parse_args()
     cases = [c for c in load_cases() if (not args.category or c["category"] == args.category)
              and (not args.scenario or c["id"] == args.scenario)]
