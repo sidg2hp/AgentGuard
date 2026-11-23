@@ -16,3 +16,10 @@ jobs:
         with:
           name: paired-benchmark
           path: results/benchmark.json
+  sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up --build --exit-code-from benchmark
+      - run: docker compose cp benchmark:/app/results/benchmark.json sandbox-results.json
+      - run: python -c "import json; runs = json.load(open('sandbox-results.json'))['runs']; assert len(runs) == 60 and all(r['status'] != 'error' for r in runs)"

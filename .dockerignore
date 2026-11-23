@@ -1,0 +1,11 @@
+**
+!Dockerfile
+!requirements.txt
+!requirements.lock
+!pipeline.py
+!agentguard/
+!agentguard/*.py
+!evaluation/
+!evaluation/*.py
+!scenarios/
+!scenarios/*.json
