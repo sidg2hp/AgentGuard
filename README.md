@@ -2,7 +2,7 @@
 
 AgentGuard extends the Kairon dual-agent research system with runtime policy enforcement and a repeatable safety benchmark. Ask a question in the Streamlit app, follow each quotation back to its source, and inspect the decisions that led to the answer. The evaluation workspace lets you run the same inputs through different configurations.
 
-**Measured on 30 synthetic scenarios:** the baseline replay passed 19, the guarded replay passed 28, and the offline extractive agent passed 26. The report gives the denominators, remaining failures and reproduction command. [Benchmark report](docs/BENCHMARK.md)
+**On 30 synthetic scenarios**, a local Qwen model passed 29 after the change to excerpt selection, up from 18 with the earlier drafting interface. The offline extractive agent and guarded replay each passed 28. Per-trial comparisons and remaining failures are in the [benchmark report](docs/BENCHMARK.md).
 
 ## Run locally
 
@@ -14,6 +14,8 @@ uv run --frozen streamlit run app.py
 ```
 
 Choose **Research → Sample catalog** and ask “What do research agents do?” Open **Execution trace** to inspect input validation, search, evidence collection, drafting and release. In **Evaluation**, click **Run benchmark** for the paired replay, then select a failed trial to compare its expected status and observed output.
+
+To try a real model without a Tavily key, start Ollama, run `ollama pull qwen2.5:0.5b`, and choose **Sample catalog with Ollama**. Select the installed model and ask “What is RAG?” The answer includes the stable catalog reference and its original text.
 
 For pip environments, install `requirements.txt` in an activated virtual environment and run `streamlit run app.py`. The exported requirements contain the locked runtime dependencies. The uv development environment also includes pytest.
 
@@ -89,6 +91,8 @@ uv run --frozen pytest -q
 uv run --frozen python -m evaluation.runner
 uv run --frozen python -m evaluation.runner --category permissions
 uv run --frozen python -m evaluation.runner --scenario GRO-03 --profile guarded-extractive
+uv run --frozen python -m evaluation.runner --profile guarded-ollama --model qwen2.5:0.5b --output results/qwen.json
+uv run --frozen python -m evaluation.compare docs/benchmarks/qwen-after.json results/qwen.json --fail-on-regression
 ```
 
 The CLI writes `results/benchmark.json`. Use `--output` to keep runs under different names. The app can open the latest CLI result or run trials in session memory and download them. GitHub Actions runs the offline tests and publishes the paired benchmark JSON as a workflow artifact.
@@ -97,8 +101,8 @@ The CLI writes `results/benchmark.json`. Use `--output` to keep runs under diffe
 | --- | --- |
 | `baseline-replay` | An in-memory reference renders a supplied draft and dispatches fixture calls with minimal checking. It has no live providers. |
 | `guarded-replay` | The research graph receives the identical fixture draft. Permission probes call the MCP server's dispatch function with instrumented handlers. |
-| `guarded-extractive` | A deterministic word-overlap selector drafts from fixture evidence. |
-| `guarded-ollama` | An installed local Ollama model selects excerpts from the same fixture evidence. The report records its digest and temperature. |
+| `guarded-extractive` | A deterministic selector ranks word overlap, omits duplicates and prefers excerpts matching more of the question. |
+| `guarded-ollama` | An installed local Ollama model selects excerpt IDs from the same fixture evidence. The runtime retrieves the original quotations. Reports record the model digest, temperature and seed. |
 
 The paired replay measures the effect of the harness on fixed proposals. The two drafting profiles generate their own proposals. Cases with deliberately invalid replay drafts carry separate task expectations for those profiles. Independent graders inspect released text, citation IDs, outbound fixture queries and observed handler calls. Timing and run IDs vary between executions.
 
