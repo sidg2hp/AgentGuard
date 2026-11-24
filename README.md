@@ -36,9 +36,9 @@ If Windows reports `WinError 10048`, port 8000 is already in use. If the existin
 
 1. Open **Evidence packs** and create a pack named **Museum field notes**. Give its first document the title **Collection inventory** and the text `The museum holds seven maps.`
 2. Expand **Acceptance checks**, add the question `How many maps does the museum hold?`, select **Answered**, enter `seven maps` as the expected text and `1` as the document number. Save the pack.
-3. Select the saved pack and click **Research this pack**. Queue the same question. Open the completed run to see the quoted answer, citation, graph trace and lifecycle events.
-4. Under **Evaluations**, select the pack. The extractive configuration runs the 30 bundled scenarios plus the pack check. **Runs** shows progress and retains the result after a browser or service restart.
-5. Click **Assess release**. Inspect the pass rate, prohibited dispatches, synthetic disclosures, execution errors and pack checks. Download the decision JSON. Supply a previous evaluation ID to check for regressions on the same suite.
+3. Select the saved pack and click **Research this pack**. Enter the same question and click **Queue research**. The completed run should answer `The museum holds seven maps. [S1]`. Under **Sources**, show that S1 names **Collection inventory · document 1**.
+4. Under **Evaluations**, choose **Museum field notes** and click **Queue evaluation**. The extractive configuration runs the 30 bundled scenarios plus the pack check. In the pictured run, **29/31 scenarios passed**. Expand **Failed trials (2)** to inspect the two bundled alignment failures.
+5. Click **Assess release** in the run inspector. Leave the minimum pass rate at **90%** and click **Assess release** in the form. The pictured evaluation earns **pass** because 29/31 clears the threshold and all mandatory checks pass, including **Pack acceptance checks**. Change the threshold to **95%** and assess the same run again to see **fail**. Both decisions use the same stored evaluation. Use **Download decision** to save the verdict and its checks as JSON.
 
 ### Present the results in the console
 
@@ -46,7 +46,7 @@ Open **Runs**. The four counters show active workers and the number of queued, r
 
 For a research demo, read the answer and follow its source ID to **Sources**. A pack citation names the document and its position in the pack. Sources with a web address open in a new tab. Expand **Graph trace** to inspect the steps that produced the answer.
 
-For an evaluation demo, show the count alongside the rounded percentage. In the museum example pictured above, 29 of 31 trials passed. Expand **Failed trials (2)** to see each scenario, configuration and failed check. Then click **Assess release** to show how those results compare with the release criteria. **Lifecycle events** records when the run changed state and which attempt generated each event.
+For a release comparison, open **Release gates**, enter the candidate and baseline evaluation IDs, and select a configuration measured in both runs. Use evaluations of the same suite. Expand **Changed scenarios** when present to inspect individual changes. In either run's inspector, **Lifecycle events** shows when each state changed and the attempt that produced it.
 
 ## Features
 
@@ -237,7 +237,7 @@ uv run agentguard-eval
 uv build --wheel
 ```
 
-With a running workspace, the following commands create synthetic data and exercise the real HTTP and browser interfaces:
+Run the following against a disposable workspace with an active worker. The HTTP and browser scripts create example packs and runs. Both use `AGENTGUARD_URL` and the workspace token. The browser script also checks citation links, failed-trial details, keyboard focus and navigation at a 390-pixel viewport.
 
 ```sh
 uv run python scripts/smoke_workspace.py
@@ -246,7 +246,13 @@ uv run --group browser playwright install --only-shell chromium
 uv run --group browser python scripts/browser_smoke.py
 ```
 
-Use `--channel chrome` or `--channel msedge` with the browser script to use an installed browser. For a benchmark with runtime networking disabled, run `docker compose up --build --exit-code-from benchmark`, then `docker compose cp benchmark:/app/results/benchmark.json sandbox-results.json`. Building the image requires package access.
+To capture the evaluated museum example with an installed Chrome browser, run the following in place of the last command. The script saves the run inspector with its failed trials expanded.
+
+```sh
+uv run --group browser python scripts/browser_smoke.py --channel chrome --screenshot results/workspace-demo.png
+```
+
+Use `--channel msedge` for an installed Edge browser. For a benchmark with runtime networking disabled, run `docker compose up --build --exit-code-from benchmark`, then `docker compose cp benchmark:/app/results/benchmark.json sandbox-results.json`. Building the image requires package access.
 
 GitHub Actions is configured to lint, test, run offline evaluations and build wheels on Windows and Linux. The deployment job builds the image, starts the Compose stack, exercises HTTP and browser workflows, and checks that the isolated benchmark produced 60 trials without execution errors. Local tests cover permission checks, output validation, provider contracts, MCP transport, concurrency, worker recovery, cancellation, backup, retention, suite drift, custom acceptance failures and gate verdicts.
 
