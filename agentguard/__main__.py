@@ -10,6 +10,8 @@ import threading
 import time
 from importlib.metadata import version
 
+from dotenv import load_dotenv
+
 from agentguard.workspace.config import Settings, init_token
 from agentguard.workspace.store import Store
 
@@ -31,6 +33,7 @@ def main():
     prune.add_argument("--older-than-days", type=int, required=True)
     prune.add_argument("--apply", action="store_true", help="Delete the eligible runs and their lifecycle events")
     args = parser.parse_args()
+    load_dotenv(Path.cwd() / ".env", override=False)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     if args.command == "init" and not os.getenv("AGENTGUARD_API_TOKEN"):
         print(f"Workspace token file: {init_token()}")

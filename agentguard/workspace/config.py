@@ -41,8 +41,19 @@ class Settings:
         capacity = int(os.getenv("AGENTGUARD_QUEUE_CAPACITY", "100"))
         if not 1 <= capacity <= 10000:
             raise ValueError("AGENTGUARD_QUEUE_CAPACITY must be between 1 and 10000.")
+        web_flag = os.getenv("AGENTGUARD_ALLOW_WEB", "1")
+        if web_flag not in {"0", "1"}:
+            raise ValueError("AGENTGUARD_ALLOW_WEB must be 0 or 1.")
         return cls(Path(os.getenv("AGENTGUARD_DB") or ".agentguard/workspace.db"), token,
-                   os.getenv("AGENTGUARD_ALLOW_WEB") == "1", os.getenv("AGENTGUARD_ALLOW_MODEL") == "1", capacity)
+                   web_flag == "1", os.getenv("AGENTGUARD_ALLOW_MODEL") == "1", capacity)
+
+    @property
+    def web_unavailable_reason(self):
+        if not self.allow_web:
+            return "disabled"
+        if not (os.getenv("TAVILY_API_KEY") or "").strip():
+            return "missing_key"
+        return None
 
     def protected_values(self):
         return (self.token, os.getenv("TAVILY_API_KEY") or "")

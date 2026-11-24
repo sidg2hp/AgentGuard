@@ -1,6 +1,5 @@
 """Run one fenced job at a time. Heartbeats continue during blocking provider calls."""
 import logging
-import os
 import threading
 import time
 from uuid import uuid4
@@ -29,7 +28,7 @@ def selected_cases(spec, pack=None):
 
 def check_capabilities(spec, settings, cases=None):
     if isinstance(spec, Research):
-        if spec.source == "web" and (not settings.allow_web or not os.getenv("TAVILY_API_KEY")):
+        if spec.source == "web" and settings.web_unavailable_reason:
             raise PermissionError("Web search is disabled or unconfigured.")
         uses_model = spec.drafter == "ollama"
     else:

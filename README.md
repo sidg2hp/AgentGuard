@@ -4,7 +4,7 @@ AgentGuard is a self-hosted workspace for deciding whether a change to a tool-us
 
 For example, a museum can publish its collection notes, require an answer about its maps to cite document 1, and run that check alongside 30 safety scenarios. A failed museum check blocks its release gate even when the aggregate benchmark score is high.
 
-![AgentGuard run inspector showing a completed 31-case evaluation, worker health, run history and release assessment](docs/images/workspace.png)
+![AgentGuard Runs dashboard showing an active worker and a 29-of-31 evaluation with its two failed trials expanded](docs/images/workspace.png)
 
 **Verified locally:** the API and worker ran as separate Linux containers. A browser test created a pack, obtained a cited answer, ran a 31-case evaluation, assessed its release and checked the mobile layout. A separate network-disabled container ran all 60 paired replay trials. The local Qwen model passed 29/30 on the bundled benchmark. The report includes its remaining failure and the before-and-after trial data. [Measured benchmark](docs/BENCHMARK.md)
 
@@ -20,6 +20,8 @@ uv run agentguard serve --with-worker
 
 Open [the local console](http://127.0.0.1:8000). Paste the token from `.agentguard/token` into **Open workspace**. Initialization preserves an existing token and database. The browser holds the token in memory for the current page session. The sample catalog, extractive drafting, bundled benchmark and release gates all run offline.
 
+**Live web research.** Put your Tavily key in `TAVILY_API_KEY` in the repository's local `.env`, then start the workspace normally. Under **Runs → New research run → Evidence source**, select **Live web**, enter a question and click **Queue research**. **Extractive** drafting works without Ollama. The source menu always shows Live web and explains when the key is missing or an operator has disabled it. Restart the API and worker after editing their configuration. Tavily is called only when a web job runs.
+
 ### Walk through a release
 
 1. Open **Evidence packs** and create a pack named **Museum field notes**. Give its first document the title **Collection inventory** and the text `The museum holds seven maps.`
@@ -27,6 +29,14 @@ Open [the local console](http://127.0.0.1:8000). Paste the token from `.agentgua
 3. Select the saved pack and click **Research this pack**. Queue the same question. Open the completed run to see the quoted answer, citation, graph trace and lifecycle events.
 4. Under **Evaluations**, select the pack. The extractive configuration runs the 30 bundled scenarios plus the pack check. **Runs** shows progress and retains the result after a browser or service restart.
 5. Click **Assess release**. Inspect the pass rate, prohibited dispatches, synthetic disclosures, execution errors and pack checks. Download the decision JSON. Supply a previous evaluation ID to check for regressions on the same suite.
+
+### Present the results in the console
+
+Open **Runs**. The four counters show active workers and the number of queued, running and completed jobs. Connecting opens the latest run. Select another entry under **Recent runs** to inspect it, or use **All states** to filter the history. On a phone, selecting an entry takes you directly to its details.
+
+For a research demo, read the answer and follow its source ID to **Sources**. A pack citation names the document and its position in the pack. Sources with a web address open in a new tab. Expand **Graph trace** to inspect the steps that produced the answer.
+
+For an evaluation demo, show the count alongside the rounded percentage. In the museum example pictured above, 29 of 31 trials passed. Expand **Failed trials (2)** to see each scenario, configuration and failed check. Then click **Assess release** to show how those results compare with the release criteria. **Lifecycle events** records when the run changed state and which attempt generated each event.
 
 ## Features
 
@@ -174,12 +184,12 @@ For access beyond loopback, terminate HTTPS at a reverse proxy and restrict acce
 | `AGENTGUARD_ALLOW_MODEL` | `0` | Set to `1` to enable Ollama jobs in the workspace |
 | `OLLAMA_MODEL` | `llama3` | Operator-selected model tag, e.g. `qwen2.5:0.5b` |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Trusted model server origin; Compose defaults to the host gateway |
-| `AGENTGUARD_ALLOW_WEB` | `0` | Set to `1` to enable Tavily research |
-| `TAVILY_API_KEY` | Empty | Native Tavily credential. Compose maps the explicitly supplied `AGENTGUARD_TAVILY_KEY` to this variable inside the containers. |
+| `AGENTGUARD_ALLOW_WEB` | `1` | A configured Tavily key enables web research automatically. Set to `0` to enforce offline research sources in the workspace. |
+| `TAVILY_API_KEY` | Empty | Tavily credential for native and Compose deployments. Compose also accepts `AGENTGUARD_TAVILY_KEY` as an override. |
 | `AGENTGUARD_PORT` | `8000` | Published Compose port. Native serving accepts `--host` and `--port`. |
 | `AGENTGUARD_URL` | `http://127.0.0.1:8000` | Target used by the HTTP and browser smoke scripts |
 
-For model-backed work, install the model with `ollama pull qwen2.5:0.5b`, set its tag and enable model jobs before starting both processes. If the model runs on the host, the container must be able to reach its listening interface. Restrict access to that endpoint. Web research sends the question to Tavily. Model drafting sends the question and bounded excerpts to the configured model server. The native workspace reads process environment variables. The separate Streamlit lab also loads a local `.env`.
+For model-backed work, install the model with `ollama pull qwen2.5:0.5b`, set its tag and enable model jobs before starting both processes. If the model runs on the host, the container must be able to reach its listening interface. Restrict access to that endpoint. Web research sends the question to Tavily. Model drafting sends the question and bounded excerpts to the configured model server. Native workspace commands load `.env` from their working directory at startup. Existing process environment variables take precedence. The separate Streamlit lab also loads a local `.env`.
 
 ### Backups, upgrades and retention
 

@@ -14,6 +14,7 @@
 !agentguard/workspace/static/*.html
 !agentguard/workspace/static/*.css
 !agentguard/workspace/static/*.js
+!agentguard/workspace/static/*.webp
 !evaluation/
 !evaluation/*.py
 !scenarios/

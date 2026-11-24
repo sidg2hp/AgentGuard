@@ -8,7 +8,7 @@ const node = (tag, text, cls) => {
 };
 const option = (value, label) => new Option(label, value);
 let token = "", selected = "", page = "runs", offset = 0, scenarios = [], listing = 0;
-let polling = false, session = 0;
+let polling = false, session = 0, historySnapshot = "";
 function message(text, error = false) {
   $("message").textContent = text;
   $("message").className = error ? "error" : "";
@@ -45,10 +45,20 @@ function show(view) {
   page = view;
   document.querySelectorAll("[data-view]").forEach(el => el.hidden = el.dataset.view !== view);
   document.querySelectorAll("[data-page]").forEach(el => {
-    if (el.dataset.page === view) el.setAttribute("aria-current", "page");
+    if (el.dataset.page === view) {
+      el.setAttribute("aria-current", "page");
+      $("breadcrumb").textContent = el.textContent;
+    }
     else el.removeAttribute("aria-current");
   });
 }
+function setComposer(open, moveFocus = false) {
+  $("composer").hidden = !open;
+  $("new-run").setAttribute("aria-expanded", String(open));
+  if (moveFocus) (open ? $("question") : $("new-run")).focus();
+}
+action($("new-run"), () => setComposer($("composer").hidden, true));
+action($("close-composer"), () => setComposer(false, true));
 function download(name, value) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], {type: "application/json"}));
   const link = document.createElement("a");
@@ -100,9 +110,10 @@ async function packs() {
   const previousPack = $("eval-pack").value;
   $("eval-pack").replaceChildren(option("", "Bundled suite only"), ...rows.filter(p => p.checks > 0).map(p => option(p.id, p.name)));
   if (rows.some(p => p.id === previousPack && p.checks)) $("eval-pack").value = previousPack;
-  $("source").replaceChildren(option("catalog", "Sample catalog"), ...rows.map(p => option(p.id, p.name + " · " + p.id.slice(0, 8))));
-  if ($("source").dataset.web === "true") $("source").add(option("web", "Live web"));
-  if ([...$("source").options].some(o => o.value === prior)) $("source").value = prior;
+  const web = option("web", "Live web");
+  $("source").replaceChildren(option("catalog", "Sample catalog"), web, ...rows.map(p => option(p.id, p.name + " · " + p.id.slice(0, 8))));
+  updateWebOption();
+  if ([...$("source").options].some(o => o.value === prior && !o.disabled)) $("source").value = prior;
   $("pack-list").replaceChildren(...rows.map(p => button(p.name + " · " + p.size + " documents · " + p.id.slice(0, 8), async () => {
     const pack = await api("packs/" + p.id);
     const preview = $("pack-preview");
@@ -110,13 +121,28 @@ async function packs() {
     pack.documents.forEach(d => preview.append(node("h3", d.title), node("p", d.content), node("small", d.url)));
     if (pack.checks.length) preview.append(raw("Acceptance checks", pack.checks));
     preview.append(button("Research this pack", () => {
-      $("source").value = p.id; show("runs"); document.querySelector("[data-view=runs] details").open = true; $("question").focus();
+      $("source").value = p.id; show("runs"); setComposer(true, true);
     }));
   }, "row")));
   if (!rows.length) $("pack-list").append(node("p", "No evidence packs saved."));
 }
+function updateWebOption() {
+  const web = $("source").querySelector('option[value="web"]');
+  if (!web) return;
+  const reason = $("source").dataset.webReason;
+  web.disabled = Boolean(reason);
+  web.textContent = reason === "missing_key" ? "Live web (set TAVILY_API_KEY)"
+    : reason === "disabled" ? "Live web (disabled by operator)"
+    : reason === "legacy" ? "Live web (restart workspace to update)"
+    : reason ? "Live web (unavailable)" : "Live web";
+}
 async function workspace() {
   const info = await api("workspace");
+  $("source").dataset.webReason = info.web_enabled ? "" : (info.web_unavailable_reason ??
+    ("web_unavailable_reason" in info ? "unavailable" : "legacy"));
+  updateWebOption();
+  $("connection").textContent = info.workers ? "Worker connected" : "Waiting for worker";
+  $("connection").classList.toggle("online", info.workers > 0);
   const counts = [["Active workers",info.workers],["Queued",info.runs.queued || 0],
     ["Running",info.runs.running || 0],["Completed",info.runs.completed || 0]];
   $("health").replaceChildren(...counts.map(([label,value]) => {
@@ -129,29 +155,84 @@ async function history() {
   const version = ++listing;
   const rows = await api("runs?limit=16&offset=" + offset + ($("filter").value ? "&status=" + $("filter").value : ""));
   if (version !== listing) return;
+  const snapshot = JSON.stringify([offset, $("filter").value, rows]);
+  if (snapshot === historySnapshot) return rows;
+  historySnapshot = snapshot;
   $("history").replaceChildren(...rows.slice(0, 15).map(r => {
-    const el = button("", () => inspect(r.id), "row history-row");
+    const el = button("", async () => {
+      await inspect(r.id);
+      if (selected === r.id && window.matchMedia("(max-width: 670px)").matches) {
+        $("detail").focus({preventScroll: true});
+        $("detail").scrollIntoView({block: "start"});
+      }
+    }, "row history-row");
     el.append(node("span", r.kind === "research" ? "Research" : "Evaluation", "job-name"),
       node("small", new Date(r.created * 1000).toLocaleString()), node("span", r.status, "state state-" + r.status));
+    el.dataset.runId = r.id;
     el.setAttribute("aria-pressed", String(selected === r.id)); return el;
   }));
   if (!rows.length) $("history").append(node("p", "No runs in this selection."));
   $("prev").disabled = offset === 0; $("next").disabled = rows.length <= 15;
+  return rows;
+}
+function statusBadge(status) {
+  return node("span", status, "state state-" + status);
+}
+function sourceReference(key, uri, citation) {
+  const line = node("p", undefined, "citation");
+  line.append(node("strong", key + " · "));
+  const title = citation ? citation.title + " · document " + citation.document : uri || "Source excerpt";
+  if (URL.canParse(uri)) {
+    const url = new URL(uri);
+    if (["http:", "https:"].includes(url.protocol) && !url.username && !url.password) {
+      const link = node("a", title);
+      link.href = url.href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      line.append(link);
+      return line;
+    }
+  }
+  line.append(document.createTextNode(title));
+  return line;
+}
+function failedChecks(trials) {
+  const failures = trials.filter(trial => !trial.passed);
+  const section = node("details");
+  section.append(node("summary", "Failed trials (" + failures.length + ")"));
+  const list = node("ul", undefined, "failures");
+  for (const trial of failures) {
+    const row = node("li");
+    row.append(node("strong", trial.id + " · " + trial.profile));
+    const checks = Object.entries(trial.checks).filter(([, passed]) => !passed);
+    row.append(node("p", checks.map(([name]) => name).join(", ")));
+    list.append(row);
+  }
+  section.append(list);
+  return section;
 }
 async function inspect(id) {
   selected = id;
   const r = await api("runs/" + id);
   if (selected !== id) return;
   const panel = $("detail");
-  panel.replaceChildren(node("h2", r.kind === "research" ? "Research run" : "Evaluation run"),
-    node("p", r.id, "meta"), node("p", r.status + " · Attempt " + r.attempt + " · " + r.progress + "/" + r.total + " steps"));
+  for (const row of $("history").children) {
+    if (row.dataset.runId) row.setAttribute("aria-pressed", String(row.dataset.runId === id));
+  }
+  const heading = node("div", undefined, "heading");
+  heading.append(node("h2", r.kind === "research" ? "Research run" : "Evaluation run"), statusBadge(r.status));
+  const facts = node("div", undefined, "run-facts");
+  facts.append(node("span", "Attempt " + r.attempt), node("span", r.progress + "/" + r.total + " steps"));
+  panel.replaceChildren(heading, node("p", r.id, "meta"), facts);
   if (r.error) panel.append(node("p", r.error));
   if (r.request.query) panel.append(node("h3", "Question"), node("p", r.request.query));
   if (r.result && r.kind === "research") {
-    panel.append(node("h3", "Answer · " + r.result.status), node("pre", r.result.response));
-    for (const [key, uri] of Object.entries(r.result.sources)) {
+    panel.append(node("h3", "Answer · " + r.result.status), node("p", r.result.response, "answer"));
+    const sources = Object.entries(r.result.sources);
+    if (sources.length) panel.append(node("h3", "Sources"));
+    for (const [key, uri] of sources) {
       const citation = (r.result.citations || []).find(c => c.source === key);
-      panel.append(node("p", key + " · " + (citation ? citation.title + " · document " + citation.document : uri || "Source excerpt"), "meta"));
+      panel.append(sourceReference(key, uri, citation));
     }
     panel.append(raw("Graph trace", r.result.trace));
   }
@@ -160,13 +241,22 @@ async function inspect(id) {
       const pass = metrics["Scenario pass"];
       const block = node("div", undefined, "score");
       block.append(node("strong", name), node("span", pass.count + "/" + pass.total + " scenarios passed"));
-      const bar = node("progress"); bar.max = pass.total; bar.value = pass.count; bar.setAttribute("aria-label", name + " pass rate");
+      block.append(node("b", pass.total ? Math.round(100 * pass.count / pass.total) + "%" : "—"));
+      const bar = node("progress"); bar.max = pass.total || 1; bar.value = pass.count; bar.setAttribute("aria-label", name + " pass rate");
       block.append(bar); panel.append(block);
     }
     panel.append(button("Assess release", () => { $("candidate").value = id; $("gate-profile").value = r.request.profiles[0]; show("gates"); }));
+    if (r.result.runs.some(trial => !trial.passed)) panel.append(failedChecks(r.result.runs));
     panel.append(raw("Trial results", r.result.runs));
   }
-  panel.append(raw("Lifecycle events", r.events));
+  const lifecycle = node("details"), timeline = node("ol", undefined, "timeline");
+  for (const event of r.events) {
+    const row = node("li", event.state);
+    row.append(node("small", new Date(event.at * 1000).toLocaleString() + " · attempt " + event.attempt));
+    timeline.append(row);
+  }
+  lifecycle.append(node("summary", "Lifecycle events"), timeline);
+  panel.append(lifecycle);
   if (r.status === "running" || r.status === "queued") {
     panel.append(button("Cancel run", async () => { await api("runs/" + id + "/cancel", {}); await inspect(id); await history(); }));
   } else {
@@ -185,14 +275,14 @@ async function submit(form, spec) {
   try {
     const r = await api("runs", spec, form.dataset.key);
     delete form.dataset.signature; delete form.dataset.key;
-    offset = 0; $("filter").value = ""; show("runs"); document.querySelector("[data-view=runs] details").open = false;
+    offset = 0; $("filter").value = ""; show("runs"); setComposer(false);
     message("Run queued."); await inspect(r.id); await history();
   } finally { submitter.disabled = false; }
 }
 action($("authenticate"), async () => {
   token = $("token").value.trim(); session++;
   const info = await workspace();
-  $("token").value = ""; $("source").dataset.web = String(info.web_enabled);
+  $("token").value = "";
   $("drafter").replaceChildren(option("extractive","Extractive"));
   if (info.model_enabled) $("drafter").add(option("ollama","Ollama"));
   $("profiles").replaceChildren();
@@ -204,8 +294,10 @@ action($("authenticate"), async () => {
   $("gate-profile").replaceChildren(...info.profiles.map(p => option(p, p))); $("gate-profile").value = "guarded-replay";
   scenarios = await api("scenarios");
   $("category").replaceChildren(option("", "All categories"), ...[...new Set(scenarios.map(s => s.category))].sort().map(s => option(s,s)));
-  scenarioOptions(); await packs(); await history();
+  scenarioOptions(); await packs();
+  const rows = await history();
   $("login").hidden = true; $("workspace").hidden = false; $("disconnect").hidden = false; show("runs"); message("");
+  if (rows?.length) await inspect(rows[0].id);
 }, "submit");
 action($("disconnect"), () => { token = ""; session++; location.reload(); });
 document.querySelectorAll("[data-page]").forEach(el => action(el, async () => {
@@ -252,7 +344,13 @@ action($("gate-form"), async () => {
   const d = await api("gates", {run_id:$("candidate").value, baseline_id:$("baseline").value || null,
     profile:$("gate-profile").value, minimum_pass_rate:Number($("threshold").value)/100});
   const panel = $("decision"); panel.replaceChildren(node("h2", "Decision · " + d.verdict));
-  d.checks.forEach(c => panel.append(node("p", c.name + " · " + c.detail + " · " + c.outcome, "metric")));
+  d.checks.forEach(c => {
+    const row = node("div", undefined, "gate-check");
+    const check = node("div");
+    check.append(node("strong", c.name), node("p", c.detail));
+    row.append(check, statusBadge(c.outcome));
+    panel.append(row);
+  });
   if (d.changes.length) panel.append(raw("Changed scenarios", d.changes));
   panel.append(button("Download decision", () => download("gate-" + d.run_id + ".json", d)));
 }, "submit");

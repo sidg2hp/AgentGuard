@@ -123,7 +123,9 @@ def create_app(settings=None):
 
     @api.get("/workspace")
     def overview():
-        return {**store.stats(), "web_enabled": settings.allow_web, "model_enabled": settings.allow_model,
+        reason = settings.web_unavailable_reason
+        return {**store.stats(), "web_enabled": reason is None, "web_unavailable_reason": reason,
+                "model_enabled": settings.allow_model,
                 "profiles": PROFILES}
 
     @api.get("/scenarios")
