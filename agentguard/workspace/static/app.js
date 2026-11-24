@@ -122,11 +122,14 @@ function updateWebOption() {
   const reason = $("source").dataset.webReason;
   web.disabled = Boolean(reason);
   web.textContent = reason === "missing_key" ? "Live web (set TAVILY_API_KEY)"
-    : reason ? "Live web (disabled by operator)" : "Live web";
+    : reason === "disabled" ? "Live web (disabled by operator)"
+    : reason === "legacy" ? "Live web (restart workspace to update)"
+    : reason ? "Live web (unavailable)" : "Live web";
 }
 async function workspace() {
   const info = await api("workspace");
-  $("source").dataset.webReason = info.web_unavailable_reason || (info.web_enabled ? "" : "disabled");
+  $("source").dataset.webReason = info.web_enabled ? "" : (info.web_unavailable_reason ??
+    ("web_unavailable_reason" in info ? "unavailable" : "legacy"));
   updateWebOption();
   const counts = [["Active workers",info.workers],["Queued",info.runs.queued || 0],
     ["Running",info.runs.running || 0],["Completed",info.runs.completed || 0]];
