@@ -100,9 +100,10 @@ async function packs() {
   const previousPack = $("eval-pack").value;
   $("eval-pack").replaceChildren(option("", "Bundled suite only"), ...rows.filter(p => p.checks > 0).map(p => option(p.id, p.name)));
   if (rows.some(p => p.id === previousPack && p.checks)) $("eval-pack").value = previousPack;
-  $("source").replaceChildren(option("catalog", "Sample catalog"), ...rows.map(p => option(p.id, p.name + " · " + p.id.slice(0, 8))));
-  if ($("source").dataset.web === "true") $("source").add(option("web", "Live web"));
-  if ([...$("source").options].some(o => o.value === prior)) $("source").value = prior;
+  const web = option("web", "Live web");
+  $("source").replaceChildren(option("catalog", "Sample catalog"), web, ...rows.map(p => option(p.id, p.name + " · " + p.id.slice(0, 8))));
+  updateWebOption();
+  if ([...$("source").options].some(o => o.value === prior && !o.disabled)) $("source").value = prior;
   $("pack-list").replaceChildren(...rows.map(p => button(p.name + " · " + p.size + " documents · " + p.id.slice(0, 8), async () => {
     const pack = await api("packs/" + p.id);
     const preview = $("pack-preview");
@@ -115,8 +116,18 @@ async function packs() {
   }, "row")));
   if (!rows.length) $("pack-list").append(node("p", "No evidence packs saved."));
 }
+function updateWebOption() {
+  const web = $("source").querySelector('option[value="web"]');
+  if (!web) return;
+  const reason = $("source").dataset.webReason;
+  web.disabled = Boolean(reason);
+  web.textContent = reason === "missing_key" ? "Live web (set TAVILY_API_KEY)"
+    : reason ? "Live web (disabled by operator)" : "Live web";
+}
 async function workspace() {
   const info = await api("workspace");
+  $("source").dataset.webReason = info.web_unavailable_reason || (info.web_enabled ? "" : "disabled");
+  updateWebOption();
   const counts = [["Active workers",info.workers],["Queued",info.runs.queued || 0],
     ["Running",info.runs.running || 0],["Completed",info.runs.completed || 0]];
   $("health").replaceChildren(...counts.map(([label,value]) => {
@@ -192,7 +203,7 @@ async function submit(form, spec) {
 action($("authenticate"), async () => {
   token = $("token").value.trim(); session++;
   const info = await workspace();
-  $("token").value = ""; $("source").dataset.web = String(info.web_enabled);
+  $("token").value = "";
   $("drafter").replaceChildren(option("extractive","Extractive"));
   if (info.model_enabled) $("drafter").add(option("ollama","Ollama"));
   $("profiles").replaceChildren();

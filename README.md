@@ -20,6 +20,8 @@ uv run agentguard serve --with-worker
 
 Open [the local console](http://127.0.0.1:8000). Paste the token from `.agentguard/token` into **Open workspace**. Initialization preserves an existing token and database. The browser holds the token in memory for the current page session. The sample catalog, extractive drafting, bundled benchmark and release gates all run offline.
 
+**Live web research.** Put your Tavily key in `TAVILY_API_KEY` in the repository's local `.env`, then start the workspace normally. Under **Runs → New research run → Evidence source**, select **Live web**, enter a question and click **Queue research**. **Extractive** drafting works without Ollama. The source menu always shows Live web and explains when the key is missing or an operator has disabled it. Restart the API and worker after editing their configuration. Tavily is called only when a web job runs.
+
 ### Walk through a release
 
 1. Open **Evidence packs** and create a pack named **Museum field notes**. Give its first document the title **Collection inventory** and the text `The museum holds seven maps.`
@@ -174,12 +176,12 @@ For access beyond loopback, terminate HTTPS at a reverse proxy and restrict acce
 | `AGENTGUARD_ALLOW_MODEL` | `0` | Set to `1` to enable Ollama jobs in the workspace |
 | `OLLAMA_MODEL` | `llama3` | Operator-selected model tag, e.g. `qwen2.5:0.5b` |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Trusted model server origin; Compose defaults to the host gateway |
-| `AGENTGUARD_ALLOW_WEB` | `0` | Set to `1` to enable Tavily research |
-| `TAVILY_API_KEY` | Empty | Native Tavily credential. Compose maps the explicitly supplied `AGENTGUARD_TAVILY_KEY` to this variable inside the containers. |
+| `AGENTGUARD_ALLOW_WEB` | `1` | A configured Tavily key enables web research automatically. Set to `0` to enforce offline research sources in the workspace. |
+| `TAVILY_API_KEY` | Empty | Tavily credential for native and Compose deployments. Compose also accepts `AGENTGUARD_TAVILY_KEY` as an override. |
 | `AGENTGUARD_PORT` | `8000` | Published Compose port. Native serving accepts `--host` and `--port`. |
 | `AGENTGUARD_URL` | `http://127.0.0.1:8000` | Target used by the HTTP and browser smoke scripts |
 
-For model-backed work, install the model with `ollama pull qwen2.5:0.5b`, set its tag and enable model jobs before starting both processes. If the model runs on the host, the container must be able to reach its listening interface. Restrict access to that endpoint. Web research sends the question to Tavily. Model drafting sends the question and bounded excerpts to the configured model server. The native workspace reads process environment variables. The separate Streamlit lab also loads a local `.env`.
+For model-backed work, install the model with `ollama pull qwen2.5:0.5b`, set its tag and enable model jobs before starting both processes. If the model runs on the host, the container must be able to reach its listening interface. Restrict access to that endpoint. Web research sends the question to Tavily. Model drafting sends the question and bounded excerpts to the configured model server. Native workspace commands load `.env` from their working directory at startup. Existing process environment variables take precedence. The separate Streamlit lab also loads a local `.env`.
 
 ### Backups, upgrades and retention
 

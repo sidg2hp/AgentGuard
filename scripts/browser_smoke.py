@@ -19,7 +19,17 @@ def main():
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(os.getenv("AGENTGUARD_URL", "http://127.0.0.1:8000"))
         page.get_by_label("Workspace token").fill(token)
-        page.get_by_role("button", name="Connect", exact=True).click()
+        with page.expect_response(lambda r: r.url.endswith("/v1/workspace")) as workspace:
+            page.get_by_role("button", name="Connect", exact=True).click()
+        capability = workspace.value.json()
+        web = page.locator('#source option[value="web"]')
+        expect(web).to_have_count(1)
+        if capability["web_enabled"]:
+            expect(web).to_be_enabled()
+            expect(web).to_have_text("Live web")
+        else:
+            expect(web).to_be_disabled()
+            expect(web).to_contain_text("Live web (")
         page.get_by_role("button", name="Evidence packs", exact=True).click()
         page.get_by_label("Pack name").fill("Museum field notes")
         page.get_by_label("Title", exact=True).fill("Collection inventory")
