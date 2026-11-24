@@ -253,3 +253,6 @@ GitHub Actions is configured to lint, test, run offline evaluations and build wh
 | `docs/` | Measured benchmark, paired model artifacts and console screenshot |
 
 Exact citation checks establish that a released quotation appears in its cited source. Relevance, completeness and source quality still require review. The runtime checks known protected values and synthetic canaries. Stored packs, questions and results are application data in SQLite; restrict filesystem and backup access accordingly. The runtime/evaluation split follows the architecture described in the original project references. [Sondera design discussion](https://blog.sondera.ai/p/your-ai-agent-just-got-pwned)
+## Testing
+- Test the agents individually or as a dual-agent system.
+- Use `verbose=True` in `AgentExecutor` for detailed logs.
