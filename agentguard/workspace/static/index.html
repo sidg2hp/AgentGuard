@@ -1,27 +1,67 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AgentGuard · Workspace</title><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head>
-<body><header><div class="brand"><b>AG</b> AgentGuard</div><span>Evidence &amp; evaluation workspace</span><button id="disconnect" hidden>Disconnect</button></header>
-<main>
-<section id="login" class="card login"><h1>Open workspace</h1><p>Use the token created by <code>agentguard init</code>.</p>
-<form id="authenticate"><label>Workspace token<input id="token" type="password" required autocomplete="off"></label><button>Connect</button></form></section>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#211e28">
+  <title>AgentGuard · Workspace</title>
+  <link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<section id="login">
+  <div class="login-art">
+    <div class="brand"><i class="mark" aria-hidden="true"></i>AgentGuard</div>
+    <div class="login-caption">Evidence &amp; evaluation workspace</div>
+  </div>
+  <div class="login-form">
+    <h1>Open workspace</h1><p>Connect with the workspace token created by <code>agentguard init</code>.</p>
+    <form id="authenticate"><label>Workspace token<input id="token" type="password" required autocomplete="off" placeholder="Enter your token"></label><button>Connect</button></form>
+  </div>
+</section>
 <p id="message" role="status" aria-live="polite"></p>
-<div id="workspace" hidden><nav aria-label="Workspace"><button data-page="runs">Runs</button><button data-page="packs">Evidence packs</button><button data-page="evaluations">Evaluations</button><button data-page="gates">Release gates</button></nav>
-<div id="health"></div>
-<section data-view="runs"><div class="heading"><h1>Run history</h1><button id="refresh" class="secondary">Refresh</button></div>
-<details class="card"><summary>New research run</summary><form id="research"><label>Research question<textarea id="question" maxlength="1000" required></textarea></label>
-<div class="fields"><label>Evidence source<select id="source"></select></label><label>Drafter<select id="drafter"></select></label></div>
-<button>Queue research</button></form></details>
-<div class="split"><section class="card"><div class="heading"><h2>Recent runs</h2><select id="filter" aria-label="Filter by status"><option value="">All states</option><option>queued</option><option>running</option><option>completed</option><option>failed</option><option>cancelled</option></select></div>
-<div id="history"></div><div class="pager"><button class="secondary" id="prev">Previous</button><button class="secondary" id="next">Next</button></div></section>
-<section class="card" id="detail"><h2>Run details</h2><p>Select a run to inspect its result.</p></section></div></section>
-<section data-view="packs" hidden><h1>Evidence packs</h1><div class="split"><section class="card"><h2>Create a pack</h2>
-<form id="pack-form"><label>Pack name<input id="pack-name" maxlength="120" required></label><div id="documents"></div><div><button type="button" id="add-document" class="secondary">Add document</button></div>
-<details><summary>Acceptance checks (optional)</summary><div id="checks"></div><button type="button" id="add-check" class="secondary">Add check</button></details><button>Save pack</button></form></section>
-<section class="card"><h2>Saved packs</h2><div id="pack-list"></div><div id="pack-preview"></div></section></div></section>
-<section data-view="evaluations" hidden><h1>Run an evaluation</h1><section class="card narrow"><form id="evaluation-form">
-<label>Include pack acceptance checks<select id="eval-pack"></select></label><fieldset><legend>Configurations</legend><div id="profiles"></div></fieldset><div class="fields"><label>Category<select id="category"></select></label><label>Scenario<select id="scenario"></select></label></div><button>Queue evaluation</button></form></section></section>
-<section data-view="gates" hidden><h1>Release gates</h1><div class="split"><section class="card"><h2>Assess an evaluation</h2>
-<form id="gate-form"><label>Completed evaluation ID<input id="candidate" list="evaluated" required></label><label>Baseline evaluation ID (optional)<input id="baseline" list="evaluated"></label><datalist id="evaluated"></datalist>
-<label>Configuration<select id="gate-profile"></select></label><label>Minimum scenario pass rate (%)<input id="threshold" type="number" min="0" max="100" value="90" required></label><button>Assess release</button></form></section>
-<section class="card" id="decision"><h2>Decision</h2><p>Assess a completed evaluation to see its checks.</p></section></div></section></div></main></body></html>
+<div id="workspace" hidden>
+  <aside class="rail">
+    <div class="brand"><i class="mark" aria-hidden="true"></i>AgentGuard</div>
+    <nav aria-label="Workspace">
+      <button data-page="runs"><i class="glyph g-runs" aria-hidden="true"></i>Runs</button>
+      <button data-page="packs"><i class="glyph g-packs" aria-hidden="true"></i>Evidence packs</button>
+      <button data-page="evaluations"><i class="glyph g-eval" aria-hidden="true"></i>Evaluations</button>
+      <button data-page="gates"><i class="glyph g-gates" aria-hidden="true"></i>Release gates</button>
+    </nav>
+    <button id="disconnect" hidden><i class="glyph g-exit" aria-hidden="true"></i>Disconnect</button>
+  </aside>
+  <main id="main" tabindex="-1">
+    <header class="topbar"><div>Workspace <span aria-hidden="true">/</span> <strong id="breadcrumb">Runs</strong></div><span id="connection" class="connection"></span></header>
+    <section data-view="runs">
+      <div class="banner"><div><h1>Run history</h1>
+        <div class="actions"><button id="new-run" aria-controls="composer" aria-expanded="false"><span aria-hidden="true">＋</span> New research run</button><button class="ghost" id="refresh">Refresh</button></div>
+      </div></div>
+      <section id="composer" class="card composer" hidden><div class="heading"><h2>New research run</h2><button class="secondary" id="close-composer">Close</button></div>
+        <form id="research"><label>Research question<textarea id="question" maxlength="1000" required></textarea></label>
+          <div class="fields"><label>Evidence source<select id="source"></select></label><label>Drafter<select id="drafter"></select></label></div>
+          <button>Queue research</button>
+        </form>
+      </section>
+      <div id="health" aria-label="Workspace activity"></div>
+      <div class="split runs-split"><section class="card ledger"><div class="heading"><h2>Recent runs</h2><select id="filter" aria-label="Filter by status"><option value="">All states</option><option>queued</option><option>running</option><option>completed</option><option>failed</option><option>cancelled</option></select></div>
+        <div id="history"></div><div class="pager"><button class="secondary" id="prev">Previous</button><button class="secondary" id="next">Next</button></div>
+      </section>
+      <section class="card" id="detail"><h2>Run details</h2><p>Select a run to inspect its result.</p></section></div>
+    </section>
+    <section data-view="packs" hidden><div class="page-title"><h1>Evidence packs</h1></div><div class="split"><section class="card"><h2>Create a pack</h2>
+      <form id="pack-form"><label>Pack name<input id="pack-name" maxlength="120" required></label><div id="documents"></div><div><button type="button" id="add-document" class="secondary">Add document</button></div>
+        <details><summary>Acceptance checks (optional)</summary><div id="checks"></div><button type="button" id="add-check" class="secondary">Add check</button></details><button>Save pack</button>
+      </form></section>
+      <section class="card"><h2>Saved packs</h2><div id="pack-list"></div><div id="pack-preview"></div></section></div>
+    </section>
+    <section data-view="evaluations" hidden><div class="page-title"><h1>Run an evaluation</h1></div><section class="card narrow"><form id="evaluation-form">
+      <label>Include pack acceptance checks<select id="eval-pack"></select></label><fieldset><legend>Configurations</legend><div id="profiles"></div></fieldset><div class="fields"><label>Category<select id="category"></select></label><label>Scenario<select id="scenario"></select></label></div><button>Queue evaluation</button></form>
+    </section></section>
+    <section data-view="gates" hidden><div class="page-title"><h1>Release gates</h1></div><div class="split"><section class="card"><h2>Assess an evaluation</h2>
+      <form id="gate-form"><label>Completed evaluation ID<input id="candidate" list="evaluated" required></label><label>Baseline evaluation ID (optional)<input id="baseline" list="evaluated"></label><datalist id="evaluated"></datalist>
+        <label>Configuration<select id="gate-profile"></select></label><label>Minimum scenario pass rate (%)<input id="threshold" type="number" min="0" max="100" value="90" required></label><button>Assess release</button></form>
+      </section><section class="card" id="decision"><h2>Decision</h2><p>Assess a completed evaluation to see its checks.</p></section></div>
+    </section>
+  </main>
+</div>
+</body></html>

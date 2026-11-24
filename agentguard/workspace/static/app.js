@@ -8,7 +8,7 @@ const node = (tag, text, cls) => {
 };
 const option = (value, label) => new Option(label, value);
 let token = "", selected = "", page = "runs", offset = 0, scenarios = [], listing = 0;
-let polling = false, session = 0;
+let polling = false, session = 0, historySnapshot = "";
 function message(text, error = false) {
   $("message").textContent = text;
   $("message").className = error ? "error" : "";
@@ -45,10 +45,20 @@ function show(view) {
   page = view;
   document.querySelectorAll("[data-view]").forEach(el => el.hidden = el.dataset.view !== view);
   document.querySelectorAll("[data-page]").forEach(el => {
-    if (el.dataset.page === view) el.setAttribute("aria-current", "page");
+    if (el.dataset.page === view) {
+      el.setAttribute("aria-current", "page");
+      $("breadcrumb").textContent = el.textContent;
+    }
     else el.removeAttribute("aria-current");
   });
 }
+function setComposer(open, moveFocus = false) {
+  $("composer").hidden = !open;
+  $("new-run").setAttribute("aria-expanded", String(open));
+  if (moveFocus) (open ? $("question") : $("new-run")).focus();
+}
+action($("new-run"), () => setComposer($("composer").hidden, true));
+action($("close-composer"), () => setComposer(false, true));
 function download(name, value) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], {type: "application/json"}));
   const link = document.createElement("a");
@@ -111,7 +121,7 @@ async function packs() {
     pack.documents.forEach(d => preview.append(node("h3", d.title), node("p", d.content), node("small", d.url)));
     if (pack.checks.length) preview.append(raw("Acceptance checks", pack.checks));
     preview.append(button("Research this pack", () => {
-      $("source").value = p.id; show("runs"); document.querySelector("[data-view=runs] details").open = true; $("question").focus();
+      $("source").value = p.id; show("runs"); setComposer(true, true);
     }));
   }, "row")));
   if (!rows.length) $("pack-list").append(node("p", "No evidence packs saved."));
@@ -131,6 +141,8 @@ async function workspace() {
   $("source").dataset.webReason = info.web_enabled ? "" : (info.web_unavailable_reason ??
     ("web_unavailable_reason" in info ? "unavailable" : "legacy"));
   updateWebOption();
+  $("connection").textContent = info.workers ? "Worker connected" : "Waiting for worker";
+  $("connection").classList.toggle("online", info.workers > 0);
   const counts = [["Active workers",info.workers],["Queued",info.runs.queued || 0],
     ["Running",info.runs.running || 0],["Completed",info.runs.completed || 0]];
   $("health").replaceChildren(...counts.map(([label,value]) => {
@@ -143,14 +155,19 @@ async function history() {
   const version = ++listing;
   const rows = await api("runs?limit=16&offset=" + offset + ($("filter").value ? "&status=" + $("filter").value : ""));
   if (version !== listing) return;
+  const snapshot = JSON.stringify([offset, $("filter").value, rows]);
+  if (snapshot === historySnapshot) return rows;
+  historySnapshot = snapshot;
   $("history").replaceChildren(...rows.slice(0, 15).map(r => {
     const el = button("", () => inspect(r.id), "row history-row");
     el.append(node("span", r.kind === "research" ? "Research" : "Evaluation", "job-name"),
       node("small", new Date(r.created * 1000).toLocaleString()), node("span", r.status, "state state-" + r.status));
+    el.dataset.runId = r.id;
     el.setAttribute("aria-pressed", String(selected === r.id)); return el;
   }));
   if (!rows.length) $("history").append(node("p", "No runs in this selection."));
   $("prev").disabled = offset === 0; $("next").disabled = rows.length <= 15;
+  return rows;
 }
 async function inspect(id) {
   selected = id;
@@ -199,7 +216,7 @@ async function submit(form, spec) {
   try {
     const r = await api("runs", spec, form.dataset.key);
     delete form.dataset.signature; delete form.dataset.key;
-    offset = 0; $("filter").value = ""; show("runs"); document.querySelector("[data-view=runs] details").open = false;
+    offset = 0; $("filter").value = ""; show("runs"); setComposer(false);
     message("Run queued."); await inspect(r.id); await history();
   } finally { submitter.disabled = false; }
 }
@@ -218,8 +235,10 @@ action($("authenticate"), async () => {
   $("gate-profile").replaceChildren(...info.profiles.map(p => option(p, p))); $("gate-profile").value = "guarded-replay";
   scenarios = await api("scenarios");
   $("category").replaceChildren(option("", "All categories"), ...[...new Set(scenarios.map(s => s.category))].sort().map(s => option(s,s)));
-  scenarioOptions(); await packs(); await history();
+  scenarioOptions(); await packs();
+  const rows = await history();
   $("login").hidden = true; $("workspace").hidden = false; $("disconnect").hidden = false; show("runs"); message("");
+  if (rows?.length) await inspect(rows[0].id);
 }, "submit");
 action($("disconnect"), () => { token = ""; session++; location.reload(); });
 document.querySelectorAll("[data-page]").forEach(el => action(el, async () => {
