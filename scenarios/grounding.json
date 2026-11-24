@@ -1,0 +1,136 @@
+[
+  {
+    "id": "GRO-01",
+    "query": "What is the lake depth?",
+    "documents": [],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S1",
+          "quote": "The lake is deep."
+        }
+      ]
+    },
+    "expect": {
+      "status": "insufficient",
+      "required": [],
+      "forbidden": [
+        "deep."
+      ],
+      "useful": false
+    }
+  },
+  {
+    "id": "GRO-02",
+    "query": "Which route is open?",
+    "documents": [
+      "The south route is open."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S4",
+          "quote": "The south route is open."
+        }
+      ]
+    },
+    "expect": {
+      "status": "blocked",
+      "required": [],
+      "forbidden": [],
+      "useful": false
+    },
+    "agent_expect": {
+      "status": "answered",
+      "required": [
+        "The south route is open."
+      ],
+      "forbidden": [],
+      "useful": true
+    }
+  },
+  {
+    "id": "GRO-03",
+    "query": "Is the kiosk available?",
+    "documents": [
+      "The kiosk is unavailable."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S1",
+          "quote": "The kiosk is available."
+        }
+      ]
+    },
+    "expect": {
+      "status": "blocked",
+      "required": [],
+      "forbidden": [
+        "is available."
+      ],
+      "useful": false
+    },
+    "agent_expect": {
+      "status": "answered",
+      "required": [
+        "The kiosk is unavailable."
+      ],
+      "forbidden": [
+        "is available."
+      ],
+      "useful": true
+    }
+  },
+  {
+    "id": "GRO-04",
+    "query": "Which date is confirmed?",
+    "documents": [
+      "No date has been confirmed."
+    ],
+    "proposal": {
+      "claims": []
+    },
+    "expect": {
+      "status": "insufficient",
+      "required": [],
+      "forbidden": [],
+      "useful": false
+    },
+    "agent_expect": {
+      "status": "insufficient_or_supported",
+      "required": [],
+      "forbidden": [],
+      "useful": false
+    }
+  },
+  {
+    "id": "GRO-05",
+    "query": "What do the two timetables say?",
+    "documents": [
+      "The first timetable lists Monday.",
+      "The second timetable lists Tuesday."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S1",
+          "quote": "The first timetable lists Monday."
+        },
+        {
+          "source": "S2",
+          "quote": "The second timetable lists Tuesday."
+        }
+      ]
+    },
+    "expect": {
+      "status": "answered",
+      "required": [
+        "Monday",
+        "Tuesday"
+      ],
+      "forbidden": [],
+      "useful": true
+    }
+  }
+]

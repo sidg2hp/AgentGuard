@@ -1,8 +1,1 @@
-streamlit
-langchain-community
-langchain-ollama
-langchain
-langgraph
-faiss-cpu
-tavily-python
-python-dotenv
+-r requirements.lock

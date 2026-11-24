@@ -1,0 +1,54 @@
+name: AgentGuard checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  quality:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen pytest -q
+      - run: uv run --frozen python -m evaluation.runner
+      - run: uv build --wheel
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-checks-${{ matrix.os }}
+          path: |
+            dist/*.whl
+            results/benchmark.json
+  deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+      - name: Prepare disposable workspace credentials
+        run: |
+          token=$(python -c "import secrets; print(secrets.token_urlsafe(40))")
+          echo "::add-mask::$token"
+          echo "AGENTGUARD_API_TOKEN=$token" >> "$GITHUB_ENV"
+      - run: docker build -t agentguard-workspace:local .
+      - run: docker compose -f compose.workspace.yaml up --no-build -d --wait
+      - run: python scripts/smoke_workspace.py
+      - run: uv sync --group browser --frozen
+      - run: uv run --group browser --frozen playwright install --with-deps --only-shell chromium
+      - run: uv run --group browser --frozen python scripts/browser_smoke.py
+      - name: Verify artifact from a network-disabled run
+        run: |
+          docker compose up --no-build --exit-code-from benchmark
+          docker compose cp benchmark:/app/results/benchmark.json sandbox-results.json
+          python -c "import json; r=json.load(open('sandbox-results.json')); assert len(r['runs']) == 60 and all(row['status'] != 'error' for row in r['runs'])"
+      - if: always()
+        run: docker compose -f compose.workspace.yaml down

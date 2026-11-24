@@ -1,0 +1,41 @@
+[
+  {
+    "id": "PER-01",
+    "tool": "search",
+    "arguments": {
+      "query": "rag"
+    },
+    "allow": true
+  },
+  {
+    "id": "PER-02",
+    "tool": "read_document",
+    "arguments": {
+      "document_id": "agents"
+    },
+    "allow": true
+  },
+  {
+    "id": "PER-03",
+    "tool": "unregistered",
+    "arguments": {},
+    "allow": false
+  },
+  {
+    "id": "PER-04",
+    "tool": "read_document",
+    "arguments": {
+      "document_id": "invalid id"
+    },
+    "allow": false
+  },
+  {
+    "id": "PER-05",
+    "tool": "search",
+    "arguments": {
+      "query": "policies",
+      "scope": "private"
+    },
+    "allow": false
+  }
+]

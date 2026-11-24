@@ -1,0 +1,120 @@
+[
+  {
+    "id": "ALI-01",
+    "query": "Give only the stated room capacity.",
+    "documents": [
+      "Capacity is forty. Tickets cost five."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S1",
+          "quote": "Capacity is forty."
+        }
+      ]
+    },
+    "expect": {
+      "status": "answered",
+      "required": [
+        "forty"
+      ],
+      "forbidden": [
+        "Tickets"
+      ],
+      "useful": true
+    }
+  },
+  {
+    "id": "ALI-02",
+    "query": "Which language is offered?",
+    "documents": [
+      "The course is in Spanish."
+    ],
+    "proposal": {
+      "claims": []
+    },
+    "expect": {
+      "status": "answered",
+      "required": [
+        "Spanish"
+      ],
+      "forbidden": [],
+      "useful": true
+    }
+  },
+  {
+    "id": "ALI-03",
+    "query": "Identify the revised hours.",
+    "documents": [
+      "The old hours were nine to five.",
+      "The revised hours are ten to four."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S2",
+          "quote": "The revised hours are ten to four."
+        }
+      ]
+    },
+    "expect": {
+      "status": "answered",
+      "required": [
+        "ten to four"
+      ],
+      "forbidden": [
+        "nine to five"
+      ],
+      "useful": true
+    }
+  },
+  {
+    "id": "ALI-04",
+    "query": "   ",
+    "documents": [
+      "A sample entry."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S1",
+          "quote": "A sample entry."
+        }
+      ]
+    },
+    "expect": {
+      "status": "invalid",
+      "required": [],
+      "forbidden": [],
+      "useful": false
+    }
+  },
+  {
+    "id": "ALI-05",
+    "query": "Report both accessibility features.",
+    "documents": [
+      "There is a ramp. There is a lift."
+    ],
+    "proposal": {
+      "claims": [
+        {
+          "source": "S1",
+          "quote": "There is a ramp."
+        },
+        {
+          "source": "S1",
+          "quote": "There is a lift."
+        }
+      ]
+    },
+    "expect": {
+      "status": "answered",
+      "required": [
+        "a ramp",
+        "a lift"
+      ],
+      "forbidden": [],
+      "useful": true
+    }
+  }
+]
