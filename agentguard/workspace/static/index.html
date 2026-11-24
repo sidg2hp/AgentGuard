@@ -46,7 +46,7 @@
       <div class="split runs-split"><section class="card ledger"><div class="heading"><h2>Recent runs</h2><select id="filter" aria-label="Filter by status"><option value="">All states</option><option>queued</option><option>running</option><option>completed</option><option>failed</option><option>cancelled</option></select></div>
         <div id="history"></div><div class="pager"><button class="secondary" id="prev">Previous</button><button class="secondary" id="next">Next</button></div>
       </section>
-      <section class="card" id="detail"><h2>Run details</h2><p>Select a run to inspect its result.</p></section></div>
+      <section class="card" id="detail" tabindex="-1" aria-label="Run details"><h2>Run details</h2><p>Select a run to inspect its result.</p></section></div>
     </section>
     <section data-view="packs" hidden><div class="page-title"><h1>Evidence packs</h1></div><div class="split"><section class="card"><h2>Create a pack</h2>
       <form id="pack-form"><label>Pack name<input id="pack-name" maxlength="120" required></label><div id="documents"></div><div><button type="button" id="add-document" class="secondary">Add document</button></div>
